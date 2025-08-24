@@ -1,4 +1,5 @@
 """User model definition."""
+
 from __future__ import annotations
 
 from app.core.database import db
@@ -16,6 +17,7 @@ class User(db.Model):
     created_at:
         Creation timestamp.
     """
+
     __tablename__ = "users"
 
     id = db.Column(db.Integer, primary_key=True)

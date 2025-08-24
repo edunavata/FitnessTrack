@@ -1,9 +1,10 @@
 # app/core/errors.py
 """Centralized JSON error handling for the API."""
+
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
 from uuid import uuid4
 
 from flask import Flask, jsonify, request
@@ -30,7 +31,7 @@ class APIError(Exception):
         message: str,
         status_code: int = 400,
         error_type: str = "bad_request",
-        fields: Optional[Dict[str, Any]] = None,
+        fields: dict[str, Any] | None = None,
     ) -> None:
         super().__init__(message)
         self.message = message
@@ -38,9 +39,9 @@ class APIError(Exception):
         self.error_type = error_type
         self.fields = fields or {}
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Serialize error to a standard dict."""
-        data: Dict[str, Any] = {
+        data: dict[str, Any] = {
             "type": self.error_type,
             "message": self.message,
             "status": self.status_code,

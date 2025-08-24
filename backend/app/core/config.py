@@ -1,10 +1,11 @@
 # app/core/config.py
 """Application settings with environment-based config classes."""
+
 from __future__ import annotations
 
 import os
-from typing import Type
 from dataclasses import dataclass
+
 from dotenv import load_dotenv
 
 # Load .env if present (dev convenience)
@@ -20,69 +21,88 @@ def _str2bool(value: str, default: bool = False) -> bool:
 
 @dataclass(frozen=True)
 class BaseConfig:
-    """Base configuration shared across environments.
+    """Base configuration shared across environments."""
 
-    Attributes
-    ----------
-    SECRET_KEY:
-        Secret key for Flask (and later JWT).
-    SQLALCHEMY_DATABASE_URI:
-        SQLAlchemy connection string.
-    SQLALCHEMY_TRACK_MODIFICATIONS:
-        Disable costly tracking feature.
-    SQLALCHEMY_ECHO:
-        Echo SQL statements to logs.
-    JSON_SORT_KEYS:
-        Keep JSON order as defined.
-    PROPAGATE_EXCEPTIONS:
-        Let Flask handle exceptions via error handlers.
-    LOG_LEVEL:
-        Root logger level.
-    CORS_ORIGINS:
-        Comma-separated origins for CORS.
-    """
-
-    SECRET_KEY: str = os.getenv("SECRET_KEY", "CHANGE_ME")
-    SQLALCHEMY_DATABASE_URI: str = os.getenv("DATABASE_URL", "sqlite:///./dev.db")
+    SECRET_KEY: str = "CHANGE_ME"  # default value
+    SQLALCHEMY_DATABASE_URI: str = "sqlite:///./dev.db"  # default value
     SQLALCHEMY_TRACK_MODIFICATIONS: bool = False
-    SQLALCHEMY_ECHO: bool = _str2bool(os.getenv("SQLALCHEMY_ECHO", "false"))
+    SQLALCHEMY_ECHO: bool = False  # default value
     JSON_SORT_KEYS: bool = False
     PROPAGATE_EXCEPTIONS: bool = False  # centralized error handlers will format JSON
-    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
-    CORS_ORIGINS: str = os.getenv("CORS_ORIGINS", "http://localhost:5173")
+    LOG_LEVEL: str = "INFO"  # default value
+    CORS_ORIGINS: str = "http://localhost:5173"  # default value
 
     # Flask built-ins that we keep explicit to avoid surprises
-    # Make sure Flask never returns HTML error pages in production
     DEBUG: bool = False
     TESTING: bool = False
+
+    def __post_init__(self):
+        # Dynamically set values from environment variables
+        object.__setattr__(self, "SECRET_KEY", os.getenv("SECRET_KEY", self.SECRET_KEY))
+        object.__setattr__(
+            self,
+            "SQLALCHEMY_DATABASE_URI",
+            os.getenv("DATABASE_URL", self.SQLALCHEMY_DATABASE_URI),
+        )
+        object.__setattr__(
+            self,
+            "SQLALCHEMY_ECHO",
+            _str2bool(os.getenv("SQLALCHEMY_ECHO", "false"), self.SQLALCHEMY_ECHO),
+        )
+        object.__setattr__(self, "LOG_LEVEL", os.getenv("LOG_LEVEL", self.LOG_LEVEL))
+        object.__setattr__(self, "CORS_ORIGINS", os.getenv("CORS_ORIGINS", self.CORS_ORIGINS))
 
 
 @dataclass(frozen=True)
 class DevelopmentConfig(BaseConfig):
     """Development-friendly config."""
-    DEBUG: bool = _str2bool(os.getenv("FLASK_DEBUG", "1"), True)
-    SQLALCHEMY_ECHO: bool = _str2bool(os.getenv("SQLALCHEMY_ECHO", "false"))
+
+    DEBUG: bool = True  # default value
+    SQLALCHEMY_ECHO: bool = False  # default value
+
+    def __post_init__(self):
+        # Dynamically set DEBUG and SQLALCHEMY_ECHO from environment if available
+        object.__setattr__(
+            self,
+            "DEBUG",
+            _str2bool(os.getenv("FLASK_DEBUG", "1"), self.DEBUG),
+        )
+        object.__setattr__(
+            self,
+            "SQLALCHEMY_ECHO",
+            _str2bool(os.getenv("SQLALCHEMY_ECHO", "false"), self.SQLALCHEMY_ECHO),
+        )
 
 
 @dataclass(frozen=True)
 class TestingConfig(BaseConfig):
     """Testing config: in-memory DB by default."""
+
     TESTING: bool = True
     DEBUG: bool = False  # keep error handlers active for JSON responses in tests
-    SQLALCHEMY_DATABASE_URI: str = os.getenv("TEST_DATABASE_URL", "sqlite:///:memory:")
+    SQLALCHEMY_DATABASE_URI: str = "sqlite:///:memory:"  # default value
     SQLALCHEMY_ECHO: bool = False
     PROPAGATE_EXCEPTIONS: bool = True  # helpful for pytest assertions
+
+    def __post_init__(self):
+        # Dynamically set SQLALCHEMY_DATABASE_URI from environment if available
+        object.__setattr__(
+            self,
+            "SQLALCHEMY_DATABASE_URI",
+            os.getenv("TEST_DATABASE_URL", self.SQLALCHEMY_DATABASE_URI),
+        )
 
 
 @dataclass(frozen=True)
 class ProductionConfig(BaseConfig):
     """Production config."""
+
     DEBUG: bool = False
     SQLALCHEMY_ECHO: bool = False
     PROPAGATE_EXCEPTIONS: bool = False
 
 
-def get_config() -> Type[BaseConfig]:
+def get_config() -> type[BaseConfig]:
     """Select the config class from environment.
 
     Priority order:

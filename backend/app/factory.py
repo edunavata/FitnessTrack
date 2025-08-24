@@ -1,5 +1,6 @@
 # app/factory.py
 """Flask application factory."""
+
 from __future__ import annotations
 
 from flask import Flask
@@ -36,10 +37,14 @@ def create_app() -> Flask:
 
     # CORS
     origins = app.config.get("CORS_ORIGINS", "")
-    CORS(app, resources={r"/api/*": {"origins": [o.strip() for o in origins.split(",") if o.strip()]}})
+    CORS(
+        app,
+        resources={r"/api/*": {"origins": [o.strip() for o in origins.split(",") if o.strip()]}},
+    )
 
     # Blueprints
     from app.api.v1.health import bp as health_bp
+
     app.register_blueprint(health_bp, url_prefix="/api/v1")
 
     # Centralized error handlers (JSON-only)

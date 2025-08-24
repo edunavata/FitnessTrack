@@ -1,4 +1,5 @@
 """Logging configuration utilities."""
+
 from __future__ import annotations
 
 import logging
@@ -18,9 +19,7 @@ def configure_logging(level: str = "INFO") -> None:
     None
     """
     handler = logging.StreamHandler(sys.stdout)
-    fmt = logging.Formatter(
-        "%(asctime)s %(levelname)s [%(name)s] %(message)s", "%Y-%m-%dT%H:%M:%S"
-    )
+    fmt = logging.Formatter("%(asctime)s %(levelname)s [%(name)s] %(message)s", "%Y-%m-%dT%H:%M:%S")
     handler.setFormatter(fmt)
     root = logging.getLogger()
     root.handlers.clear()
