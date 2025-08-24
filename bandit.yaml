@@ -1,0 +1,7 @@
+# bandit.yaml
+skips:
+  - B101   # assert usadas en tests/dev; no en producción
+  - B603   # subprocess sin shell por defecto (lo revisaremos a mano)
+  - B404   # imports de módulos "sospechosos" (revisaremos caso a caso)
+exclude_dirs:
+  - backend/migrations

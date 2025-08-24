@@ -1,0 +1,60 @@
+# Ejecuta:
+#   pip install pre-commit
+#   pre-commit install
+#   pre-commit run --all-files
+#
+# NOTA: Puedes actualizar las versiones (rev) cuando quieras.
+minimum_pre_commit_version: "3.5.0"
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: check-merge-conflict
+      - id: check-yaml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: mixed-line-ending
+        args: ["--fix=lf"]
+      - id: detect-private-key
+      - id: debug-statements
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    # Actualiza a la última estable cuando quieras
+    rev: v0.6.5
+    hooks:
+      - id: ruff
+        name: ruff (lint)
+        args: ["--fix", "--exit-non-zero-on-fix"]
+        # Aplica sólo a backend por ahora (puedes abrirlo a todo el repo si quieres)
+        files: ^backend/
+      - id: ruff-format
+        name: ruff (format)
+        files: ^backend/
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.10.0
+    hooks:
+      - id: mypy
+        name: mypy (type-check)
+        files: ^backend/
+        additional_dependencies: []
+        args:
+          - "--config-file=mypy.ini"
+
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.9
+    hooks:
+      - id: bandit
+        name: bandit (security)
+        args: ["-q", "-c", "bandit.yaml"]
+        files: ^backend/
+
+  - repo: https://github.com/python-jsonschema/check-jsonschema
+    rev: 0.28.6
+    hooks:
+      - id: check-jsonschema
+        name: check-jsonschema (GitHub Actions)
+        files: ^\.github/workflows/.*\.ya?ml$
+        args:
+          - "--builtin-schema"
+          - "github-workflows"
