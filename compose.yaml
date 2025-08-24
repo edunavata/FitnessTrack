@@ -1,0 +1,3 @@
+# Docker Compose base (se completará más adelante)
+version: "3.9"
+services: {}
