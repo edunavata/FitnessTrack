@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from app.core.database import db
-from app.core.errors import APIError, Conflict, Unauthorized
+from app.core.errors import Conflict, Unauthorized
 from app.models.user import User
+from app.schemas import LoginSchema, RegisterSchema, load_data
 from flask import Blueprint, request
 from flask_jwt_extended import (
     create_access_token,
@@ -18,15 +19,9 @@ bp = Blueprint("auth", __name__)
 @bp.post("/register")
 def register():
     """Create a user with hashed password."""
-    data = request.get_json() or {}
-    email = data.get("email")
-    password = data.get("password")
-    if not email or not password:
-        raise APIError(
-            "email and password required",
-            status_code=400,
-            error_type="validation_error",
-        )
+    data = load_data(RegisterSchema(), request.get_json() or {})
+    email = data["email"]
+    password = data["password"]
     if User.query.filter_by(email=email).first() is not None:
         raise Conflict("Email already registered")
 
@@ -40,15 +35,9 @@ def register():
 @bp.post("/login")
 def login():
     """Authenticate user and return a JWT."""
-    data = request.get_json() or {}
-    email = data.get("email")
-    password = data.get("password")
-    if not email or not password:
-        raise APIError(
-            "email and password required",
-            status_code=400,
-            error_type="validation_error",
-        )
+    data = load_data(LoginSchema(), request.get_json() or {})
+    email = data["email"]
+    password = data["password"]
 
     user = User.query.filter_by(email=email).first()
     if user is None or not user.verify_password(password):
