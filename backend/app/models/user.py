@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import cast
+
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from app.core.database import db
@@ -41,4 +43,4 @@ class User(db.Model):
 
     def verify_password(self, value: str) -> bool:
         """Check a plaintext password against the stored hash."""
-        return check_password_hash(self.password_hash, value)
+        return cast(bool, check_password_hash(self.password_hash, value))
