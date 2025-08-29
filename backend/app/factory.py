@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from flask import Flask
 from flask_cors import CORS
+from flask_jwt_extended import JWTManager
 from flask_migrate import Migrate
 
 from app.core.config import get_config
@@ -12,6 +13,7 @@ from app.core.errors import register_error_handlers
 from app.core.logger import configure_logging
 
 migrate = Migrate()
+jwt = JWTManager()
 
 
 def create_app() -> Flask:
@@ -31,6 +33,7 @@ def create_app() -> Flask:
     from app import models as _models  # noqa: F401
 
     migrate.init_app(app, db)
+    jwt.init_app(app)
 
     # CORS (en varias líneas para evitar E501)
     origins = app.config.get("CORS_ORIGINS", "")
@@ -38,9 +41,11 @@ def create_app() -> Flask:
     CORS(app, resources={r"/api/*": {"origins": allowed_origins}})
 
     # Blueprints
+    from app.api.v1.auth import bp as auth_bp
     from app.api.v1.health import bp as health_bp
 
     app.register_blueprint(health_bp, url_prefix="/api/v1")
+    app.register_blueprint(auth_bp, url_prefix="/api/v1/auth")
 
     # Centralized error handlers (JSON-only)
     register_error_handlers(app)

@@ -23,6 +23,7 @@ class BaseConfig:
 
     # Secretos / seguridad
     SECRET_KEY = os.getenv("SECRET_KEY", "CHANGE_ME")
+    JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "CHANGE_ME_JWT")
 
     # DB
     SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL", "sqlite:///./dev.db")
