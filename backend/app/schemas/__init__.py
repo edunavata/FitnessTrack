@@ -22,7 +22,7 @@ def load_data(schema: Schema, data: dict[str, Any]) -> dict[str, Any]:
     Raises
     ------
     APIError
-        If validation fails. Field-level errors are included in ``fields``.
+        If validation fails. Field-level errors are included in ``details``.
     """
     try:
         return cast(dict[str, Any], schema.load(data))
@@ -30,8 +30,8 @@ def load_data(schema: Schema, data: dict[str, Any]) -> dict[str, Any]:
         raise APIError(
             "Invalid payload",
             status_code=400,
-            error_type="validation_error",
-            fields=err.messages,
+            code="validation_error",
+            details=err.messages,
         ) from err
 
 
