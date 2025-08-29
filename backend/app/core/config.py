@@ -1,119 +1,80 @@
-# app/core/config.py
-"""Application settings with environment-based config classes."""
+"""Application settings with environment-based simple classes."""
 
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
 
 from dotenv import load_dotenv
 
-# Load .env if present (dev convenience)
+# Carga .env en desarrollo (no hace nada si no existe)
 load_dotenv()
 
 
-def _str2bool(value: str, default: bool = False) -> bool:
-    """Convert common truthy/falsey strings to bool."""
-    if value is None:
+def env_bool(name: str, default: bool = False) -> bool:
+    """Parse bools from environment variables."""
+    val = os.getenv(name)
+    if val is None:
         return default
-    return str(value).strip().lower() in {"1", "true", "yes", "y", "on"}
+    return str(val).strip().lower() in {"1", "true", "yes", "y", "on"}
 
 
-@dataclass(frozen=True)
 class BaseConfig:
     """Base configuration shared across environments."""
 
-    SECRET_KEY: str = "CHANGE_ME"  # default value
-    SQLALCHEMY_DATABASE_URI: str = "sqlite:///./dev.db"  # default value
-    SQLALCHEMY_TRACK_MODIFICATIONS: bool = False
-    SQLALCHEMY_ECHO: bool = False  # default value
-    JSON_SORT_KEYS: bool = False
-    PROPAGATE_EXCEPTIONS: bool = False  # centralized error handlers will format JSON
-    LOG_LEVEL: str = "INFO"  # default value
-    CORS_ORIGINS: str = "http://localhost:5173"  # default value
+    # Secretos / seguridad
+    SECRET_KEY = os.getenv("SECRET_KEY", "CHANGE_ME")
 
-    # Flask built-ins that we keep explicit to avoid surprises
-    DEBUG: bool = False
-    TESTING: bool = False
+    # DB
+    SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL", "sqlite:///./dev.db")
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+    SQLALCHEMY_ECHO = env_bool("SQLALCHEMY_ECHO", False)
 
-    def __post_init__(self):
-        # Dynamically set values from environment variables
-        object.__setattr__(self, "SECRET_KEY", os.getenv("SECRET_KEY", self.SECRET_KEY))
-        object.__setattr__(
-            self,
-            "SQLALCHEMY_DATABASE_URI",
-            os.getenv("DATABASE_URL", self.SQLALCHEMY_DATABASE_URI),
-        )
-        object.__setattr__(
-            self,
-            "SQLALCHEMY_ECHO",
-            _str2bool(os.getenv("SQLALCHEMY_ECHO", "false"), self.SQLALCHEMY_ECHO),
-        )
-        object.__setattr__(self, "LOG_LEVEL", os.getenv("LOG_LEVEL", self.LOG_LEVEL))
-        object.__setattr__(self, "CORS_ORIGINS", os.getenv("CORS_ORIGINS", self.CORS_ORIGINS))
+    # Flask & JSON
+    JSON_SORT_KEYS = False
+    PROPAGATE_EXCEPTIONS = False
+
+    # Logging & CORS
+    LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
+    CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:5173")
+
+    # Built-ins de Flask
+    DEBUG = False
+    TESTING = False
 
 
-@dataclass(frozen=True)
 class DevelopmentConfig(BaseConfig):
     """Development-friendly config."""
 
-    DEBUG: bool = True  # default value
-    SQLALCHEMY_ECHO: bool = False  # default value
-
-    def __post_init__(self):
-        # Dynamically set DEBUG and SQLALCHEMY_ECHO from environment if available
-        object.__setattr__(
-            self,
-            "DEBUG",
-            _str2bool(os.getenv("FLASK_DEBUG", "1"), self.DEBUG),
-        )
-        object.__setattr__(
-            self,
-            "SQLALCHEMY_ECHO",
-            _str2bool(os.getenv("SQLALCHEMY_ECHO", "false"), self.SQLALCHEMY_ECHO),
-        )
+    DEBUG = env_bool("FLASK_DEBUG", True)
+    # Puedes activar echo desde env si lo necesitas
+    SQLALCHEMY_ECHO = env_bool("SQLALCHEMY_ECHO", False)
 
 
-@dataclass(frozen=True)
 class TestingConfig(BaseConfig):
     """Testing config: in-memory DB by default."""
 
-    TESTING: bool = True
-    DEBUG: bool = False  # keep error handlers active for JSON responses in tests
-    SQLALCHEMY_DATABASE_URI: str = "sqlite:///:memory:"  # default value
-    SQLALCHEMY_ECHO: bool = False
-    PROPAGATE_EXCEPTIONS: bool = True  # helpful for pytest assertions
-
-    def __post_init__(self):
-        # Dynamically set SQLALCHEMY_DATABASE_URI from environment if available
-        object.__setattr__(
-            self,
-            "SQLALCHEMY_DATABASE_URI",
-            os.getenv("TEST_DATABASE_URL", self.SQLALCHEMY_DATABASE_URI),
-        )
+    TESTING = True
+    DEBUG = False
+    SQLALCHEMY_DATABASE_URI = os.getenv("TEST_DATABASE_URL", "sqlite:///:memory:")
+    SQLALCHEMY_ECHO = env_bool("SQLALCHEMY_ECHO", False)
+    PROPAGATE_EXCEPTIONS = True
 
 
-@dataclass(frozen=True)
 class ProductionConfig(BaseConfig):
     """Production config."""
 
-    DEBUG: bool = False
-    SQLALCHEMY_ECHO: bool = False
-    PROPAGATE_EXCEPTIONS: bool = False
+    DEBUG = False
+    SQLALCHEMY_ECHO = False
+    PROPAGATE_EXCEPTIONS = False
 
 
 def get_config() -> type[BaseConfig]:
-    """Select the config class from environment.
+    """Return the config class selected by environment variables.
 
-    Priority order:
-    1) APP_ENV (production|development|testing)
-    2) FLASK_ENV (flask legacy var)
-    3) default: DevelopmentConfig
-
-    Returns
-    -------
-    Type[BaseConfig]
-        The selected configuration class.
+    Priority:
+      1) APP_ENV (production|development|testing)
+      2) FLASK_ENV (legacy)
+      3) default: DevelopmentConfig
     """
     env = (os.getenv("APP_ENV") or os.getenv("FLASK_ENV") or "development").lower()
     if env in {"prod", "production"}:

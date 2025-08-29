@@ -1,6 +1,4 @@
 # 1) Crear venv e instalar dependencias
-cd backend
-python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 

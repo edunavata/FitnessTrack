@@ -1,4 +1,3 @@
-# app/factory.py
 """Flask application factory."""
 
 from __future__ import annotations
@@ -18,29 +17,25 @@ migrate = Migrate()
 def create_app() -> Flask:
     """Create and configure the Flask application.
 
-    Returns
-    -------
-    Flask
-        Configured Flask app instance.
+    :returns: Configured Flask app instance.
+    :rtype: Flask
     """
     Config = get_config()
-
-    # Configure logging early (based on config)
     configure_logging(Config.LOG_LEVEL)
-
     app = Flask(__name__)
     app.config.from_object(Config)
 
     # Init extensions
     db.init_app(app)
+
+    from app import models as _models  # noqa: F401
+
     migrate.init_app(app, db)
 
-    # CORS
+    # CORS (en varias líneas para evitar E501)
     origins = app.config.get("CORS_ORIGINS", "")
-    CORS(
-        app,
-        resources={r"/api/*": {"origins": [o.strip() for o in origins.split(",") if o.strip()]}},
-    )
+    allowed_origins = [o.strip() for o in origins.split(",") if o.strip()]
+    CORS(app, resources={r"/api/*": {"origins": allowed_origins}})
 
     # Blueprints
     from app.api.v1.health import bp as health_bp
