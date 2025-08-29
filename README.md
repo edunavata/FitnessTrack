@@ -9,3 +9,7 @@ Proyecto monorepo para una app de tracking de entrenos:
 - backend/
 - frontend/
 - deploy/
+
+## API Docs
+
+La especificación OpenAPI se encuentra en `backend/openapi/openapi.yaml`.

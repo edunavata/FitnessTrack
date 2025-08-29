@@ -20,60 +20,59 @@ class APIError(Exception):
         Human-readable error message.
     status_code:
         HTTP status code.
-    error_type:
-        Machine-readable error type (snake_case).
-    fields:
-        Optional field-level errors for validation scenarios.
+    code:
+        Machine-readable error code (snake_case).
+    details:
+        Optional structured details for validation scenarios.
     """
 
     def __init__(
         self,
         message: str,
         status_code: int = 400,
-        error_type: str = "bad_request",
-        fields: dict[str, Any] | None = None,
+        code: str = "bad_request",
+        details: dict[str, Any] | None = None,
     ) -> None:
         super().__init__(message)
         self.message = message
         self.status_code = status_code
-        self.error_type = error_type
-        self.fields = fields or {}
+        self.code = code
+        self.details = details or {}
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize error to a standard dict."""
         data: dict[str, Any] = {
-            "type": self.error_type,
+            "code": self.code,
             "message": self.message,
-            "status": self.status_code,
         }
-        if self.fields:
-            data["fields"] = self.fields
+        if self.details:
+            data["details"] = self.details
         return data
 
 
 # Convenience domain errors (extend as needed)
 class NotFound(APIError):
     def __init__(self, message: str = "Resource not found") -> None:
-        super().__init__(message, status_code=404, error_type="not_found")
+        super().__init__(message, status_code=404, code="not_found")
 
 
 class Conflict(APIError):
     def __init__(self, message: str = "Conflict") -> None:
-        super().__init__(message, status_code=409, error_type="conflict")
+        super().__init__(message, status_code=409, code="conflict")
 
 
 class Unauthorized(APIError):
     def __init__(self, message: str = "Unauthorized") -> None:
-        super().__init__(message, status_code=401, error_type="unauthorized")
+        super().__init__(message, status_code=401, code="unauthorized")
 
 
 class Forbidden(APIError):
     def __init__(self, message: str = "Forbidden") -> None:
-        super().__init__(message, status_code=403, error_type="forbidden")
+        super().__init__(message, status_code=403, code="forbidden")
 
 
-def _http_status_to_type(status_code: int) -> str:
-    """Map common HTTP status codes to error type strings."""
+def _http_status_to_code(status_code: int) -> str:
+    """Map common HTTP status codes to error code strings."""
     mapping = {
         400: "bad_request",
         401: "unauthorized",
@@ -108,14 +107,14 @@ def register_error_handlers(app: Flask) -> None:
     def handle_http_exception(err: HTTPException):
         # Normalize Werkzeug exceptions (e.g., 404, 405, JSON decode 400, etc.)
         status = err.code or 500
-        error_type = _http_status_to_type(status)
-        message = err.description or error_type.replace("_", " ").capitalize()
+        error_code = _http_status_to_code(status)
+        message = err.description or error_code.replace("_", " ").capitalize()
 
         # Add context for not_found
         if status == 404:
             message = f"Route '{request.path}' not found"
 
-        payload = {"error": {"type": error_type, "message": message, "status": status}}
+        payload = {"error": {"code": error_code, "message": message}}
         return jsonify(payload), status
 
     @app.errorhandler(Exception)
@@ -125,10 +124,9 @@ def register_error_handlers(app: Flask) -> None:
         logging.exception("Unhandled error (id=%s)", err_id)
         payload = {
             "error": {
-                "type": "internal_server_error",
+                "code": "internal_server_error",
                 "message": "Unexpected error",
-                "status": 500,
-                "id": err_id,
+                "details": {"id": err_id},
             }
         }
         return jsonify(payload), 500
