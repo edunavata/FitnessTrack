@@ -9,7 +9,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from app.core.database import db
 
 
-class User(db.Model):  # type: ignore[name-defined]
+class User(db.Model):
     """Minimal user entity (we ampliaremos luego para auth JWT).
 
     Attributes
