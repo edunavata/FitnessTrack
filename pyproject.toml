@@ -31,3 +31,22 @@ quote-style = "preserve"
 indent-style = "space"
 line-ending = "lf"
 docstring-code-format = true
+
+[tool.pytest.ini_options]
+addopts = "-ra -q --strict-config --strict-markers --disable-warnings --cov=backend/app --cov=tests --cov-branch"
+testpaths = [
+  "tests",
+]
+python_files = "test_*.py"
+filterwarnings = [
+  "error::DeprecationWarning",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["backend/app", "tests"]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 90
+
