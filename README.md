@@ -157,4 +157,4 @@ This project is licensed under the [MIT License](LICENSE).
 
 ## Author & Acknowledgements
 
-Developed by **FitnessTrack contributors**. Special thanks to the mentors and colleagues at **EDP Renewables** for guidance throughout the internship.
+Developed by **Eduardo González Fernández**. Special thanks to the mentors and colleagues at **EDP Renewables** for guidance throughout the internship.
