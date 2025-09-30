@@ -1,13 +1,12 @@
-# Python
-__pycache__/
-*.pyc
-.venv/
-.env
+# Flask instance & local databases
 instance/
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
 
-# coverage / pytest
-.coverage
-coverage.xml
-htmlcov/
-.pytest_cache/
-__pycache__/
+# Local environment overrides
+.env
+.env.*
+!.env.example
+!.env.*.example
