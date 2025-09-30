@@ -6,11 +6,11 @@ from typing import cast
 
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from app.core.database import db
+from .base import PKMixin, ReprMixin, TimestampMixin, db
 
 
-class User(db.Model):
-    """Minimal user entity (we ampliaremos luego para auth JWT).
+class User(PKMixin, TimestampMixin, ReprMixin, db.Model):
+    """Minimal user entity (later extended for JWT auth).
 
     Attributes
     ----------
@@ -26,10 +26,14 @@ class User(db.Model):
 
     __tablename__ = "users"
 
-    id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(254), unique=True, nullable=False, index=True)
+    name = db.Column(db.String(120), nullable=False)
     password_hash = db.Column(db.String(128), nullable=False)
     created_at = db.Column(db.DateTime, server_default=db.func.now(), nullable=False)
+
+    # Relationships
+    routines = db.relationship("Routine", back_populates="user", cascade="all, delete-orphan")
+    workouts = db.relationship("Workout", back_populates="user", cascade="all, delete-orphan")
 
     @property
     def password(self) -> str:

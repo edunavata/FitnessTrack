@@ -1,8 +1,19 @@
 """Model package init used by Alembic autogenerate."""
 
-from __future__ import annotations
-
-# Import models here so Alembic can detect them on autogenerate
+from .base import db
+from .exercise import Exercise, MuscleGroup
+from .routine import Routine, RoutineExercise
 from .user import User
+from .workout import Workout, WorkoutExercise, WorkoutSet
 
-__all__ = ["User"]
+__all__ = [
+    "db",
+    "User",
+    "Exercise",
+    "MuscleGroup",
+    "Routine",
+    "RoutineExercise",
+    "Workout",
+    "WorkoutExercise",
+    "WorkoutSet",
+]
