@@ -1,3 +1,5 @@
+"""Catalog of exercises and enumerations for muscle groups."""
+
 from __future__ import annotations
 
 import enum
@@ -6,7 +8,7 @@ from .base import PKMixin, ReprMixin, TimestampMixin, db
 
 
 class MuscleGroup(enum.Enum):
-    """Supported muscle groups."""
+    """Supported muscle groups for catalogued exercises."""
 
     CHEST = "CHEST"
     BACK = "BACK"
@@ -23,13 +25,24 @@ class MuscleGroup(enum.Enum):
 
 
 class Exercise(PKMixin, TimestampMixin, ReprMixin, db.Model):
-    """Exercise catalog entity.
+    """Catalog entry describing a single exercise.
 
-    :ivar id: Primary key.
-    :ivar name: Unique exercise name.
-    :ivar muscle_group: Main muscle group (enum).
-    :ivar is_unilateral: Whether exercise is unilateral.
-    :ivar notes: Free-form notes.
+    Attributes
+    ----------
+    name: sqlalchemy.Column
+        Unique exercise name used for lookup and display.
+    muscle_group: sqlalchemy.Column
+        Primary :class:`MuscleGroup` targeted by the exercise.
+    is_unilateral: sqlalchemy.Column
+        Flag indicating whether the movement trains one side at a time.
+    notes: sqlalchemy.Column
+        Optional free-form notes for coaching cues or equipment.
+    routine_items: sqlalchemy.orm.RelationshipProperty
+        Reverse relationship to :class:`app.models.routine.RoutineExercise`
+        entries.
+    workout_items: sqlalchemy.orm.RelationshipProperty
+        Reverse relationship to :class:`app.models.workout.WorkoutExercise`
+        entries.
     """
 
     __tablename__ = "exercises"

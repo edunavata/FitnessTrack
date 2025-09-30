@@ -1,4 +1,4 @@
-"""API blueprint package."""
+"""Utilities for registering grouped API blueprints."""
 
 from __future__ import annotations
 
@@ -13,12 +13,21 @@ def register_blueprint_group(
     base_prefix: str,
     entries: Iterable[tuple[Blueprint, str]],
 ) -> None:
-    """
-    Register a group of blueprints under a common base prefix.
+    """Register a group of blueprints under a shared URL prefix.
 
-    :param app: Flask application.
-    :param base_prefix: Base prefix (e.g. '/api/v1').
-    :param entries: Iterable of (blueprint, relative_prefix).
+    Parameters
+    ----------
+    app: Flask
+        Application that will receive the blueprints.
+    base_prefix: str
+        Base path such as ``/api/v1`` prepended to each blueprint entry.
+    entries: Iterable[tuple[Blueprint, str]]
+        Blueprint and relative prefix pairs to be attached.
+
+    Notes
+    -----
+    Slashes in ``base_prefix`` and relative prefixes are normalized to avoid
+    duplicate separators when registering.
     """
     for bp, rel_prefix in entries:
         # Normalize slashes safely

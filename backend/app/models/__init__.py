@@ -1,4 +1,4 @@
-"""Model package init used by Alembic autogenerate."""
+"""Expose SQLAlchemy models for metadata discovery and imports."""
 
 from .base import db
 from .exercise import Exercise, MuscleGroup

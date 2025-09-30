@@ -19,7 +19,20 @@ bp = Blueprint("auth", __name__)
 
 @bp.post("/register")
 def register():
-    """Create a user with hashed password."""
+    """Create a user with a hashed password and return the profile.
+
+    Notes
+    -----
+    Expects a JSON payload with ``email`` and ``password`` fields validated by
+    :class:`RegisterSchema`. The endpoint responds with HTTP ``201`` and the
+    persisted user identifier. A ``409`` is raised when the email already
+    exists.
+
+    Warnings
+    --------
+    The password is only checked for minimum length; no complexity or breach
+    checks are enforced server-side.
+    """
     data = load_data(RegisterSchema(), request.get_json() or {})
     email = data["email"]
     password = data["password"]
@@ -35,7 +48,15 @@ def register():
 
 @bp.post("/login")
 def login():
-    """Authenticate user and return a JWT."""
+    """Authenticate the user and return a JWT access token.
+
+    Notes
+    -----
+    Payload must include ``email`` and ``password`` fields. On success the
+    response body contains ``{"access_token": <str>}`` with HTTP ``200``.
+    Invalid credentials trigger a ``401`` error without revealing which field
+    failed.
+    """
     data = load_data(LoginSchema(), request.get_json() or {})
     email = data["email"]
     password = data["password"]
@@ -51,7 +72,14 @@ def login():
 @bp.get("/me")
 @jwt_required()
 def me():
-    """Return the authenticated user's info."""
+    """Return the authenticated user's public information.
+
+    Notes
+    -----
+    Requires a valid ``Authorization: Bearer`` token issued by :func:`login`.
+    The JSON response contains ``id`` and ``email`` of the resolved identity.
+    A ``401`` is returned when the token refers to a missing user.
+    """
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
     if user is None:

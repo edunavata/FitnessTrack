@@ -28,19 +28,25 @@ def create_app(
 
     Parameters
     ----------
-    config:
-        - ``None``: load class from :func:`get_config` using ``APP_ENV``.
-        - ``str``: dotted path to a config object/class (``'package:object'``).
-        - ``Type[BaseConfig]`` or any object: passed to ``from_object``.
-    instance_relative_config:
-        Whether to enable the instance folder (recommended for secrets).
-    instance_config_filename:
-        Optional per-host overrides inside ``instance/``.
+    config: str | type[BaseConfig] | object | None
+        Configuration source forwarded to :meth:`Flask.from_object`. ``None``
+        delegates to :func:`get_config`, and strings are treated as dotted
+        import paths.
+    instance_relative_config: bool
+        Flag enabling ``instance/`` for secrets and per-host overrides.
+    instance_config_filename: str
+        Optional filename loaded from the instance folder when present.
 
     Returns
     -------
     Flask
-        Configured Flask application instance.
+        Fully initialized Flask application with extensions, logging, and
+        blueprints registered.
+
+    Notes
+    -----
+    This factory does not mutate global state beyond initializing Flask
+    extensions, making it safe to call repeatedly in tests and WSGI servers.
     """
     # 1) Instantiate app early and load base config
     app = Flask(__name__, instance_relative_config=instance_relative_config)
@@ -75,13 +81,17 @@ def create_app(
 
 
 def _configure_proxies(app: Flask) -> None:
-    """
-    Attach ProxyFix when running behind a reverse proxy.
+    """Attach :class:`ProxyFix` when running behind a reverse proxy.
 
-    This preserves ``remote_addr``, scheme and host when proxied.
+    Parameters
+    ----------
+    app: Flask
+        Application receiving the middleware chain.
 
-    :param app: Flask application instance.
-    :rtype: None
+    Notes
+    -----
+    ``ProxyFix`` preserves ``remote_addr`` and URL scheme information so audit
+    logs and URL generation reflect the upstream proxy headers.
     """
     if app.config.get("USE_PROXYFIX", True):
         # Conservative defaults; tune if your proxy chain differs.
@@ -89,11 +99,17 @@ def _configure_proxies(app: Flask) -> None:
 
 
 def _init_extensions(app: Flask) -> None:
-    """
-    Initialize Flask extensions (DB, migrations, JWT).
+    """Initialize SQLAlchemy, migrations, and JWT extensions.
 
-    :param app: Flask application instance.
-    :rtype: None
+    Parameters
+    ----------
+    app: Flask
+        Application whose context will be bound to the extensions.
+
+    Notes
+    -----
+    Importing :mod:`app.models` ensures Alembic autogenerate sees metadata, a
+    requirement for migration generation.
     """
     db.init_app(app)
 
@@ -105,14 +121,18 @@ def _init_extensions(app: Flask) -> None:
 
 
 def _configure_cors(app: Flask) -> None:
-    """
-    Configure CORS for the API surface.
+    """Configure CORS policy for API routes.
 
-    - Reads comma-separated origins from ``CORS_ORIGINS`` config key.
-    - Enables credentials only when origins are explicit (no wildcard).
+    Parameters
+    ----------
+    app: Flask
+        Application whose CORS behavior is being configured.
 
-    :param app: Flask application instance.
-    :rtype: None
+    Notes
+    -----
+    Origins are read from ``CORS_ORIGINS`` as a comma-separated list. Credential
+    support is disabled when wildcard origins are used to avoid browser
+    rejections.
     """
     raw_origins = app.config.get("CORS_ORIGINS", "")
     origins: list[str] = [o.strip() for o in raw_origins.split(",") if o.strip()]
@@ -128,11 +148,17 @@ def _configure_cors(app: Flask) -> None:
 
 
 def _register_blueprints(app: Flask) -> None:
-    """
-    Register versioned API blueprints.
+    """Register versioned API blueprints.
 
-    :param app: Flask application instance.
-    :rtype: None
+    Parameters
+    ----------
+    app: Flask
+        Application where the blueprints will be attached.
+
+    Notes
+    -----
+    The base prefix defaults to ``/api`` and is combined with versioned
+    prefixes defined by each registry entry.
     """
     api_base = app.config.get("API_BASE_PREFIX", "/api")
 
@@ -148,30 +174,38 @@ def _register_blueprints(app: Flask) -> None:
 
 
 def _register_shellcontext(app: Flask) -> None:
-    """
-    Add helpful objects to ``flask shell``.
+    """Add helpful objects to ``flask shell``.
 
-    :param app: Flask application instance.
-    :rtype: None
+    Parameters
+    ----------
+    app: Flask
+        Application whose shell context is augmented.
     """
 
     @app.shell_context_processor
     def _ctx() -> dict[str, object]:
-        """
-        Provide default shell context.
+        """Provide default shell context mappings.
 
-        :returns: Mapping of names to objects for interactive shell.
-        :rtype: dict[str, object]
+        Returns
+        -------
+        dict[str, object]
+            Objects exposed in the interactive shell.
         """
         return {"db": db}
 
 
 def _register_cli(app: Flask) -> None:
-    """
-    Register custom CLI commands (placeholder).
+    """Register custom CLI commands (placeholder).
 
-    :param app: Flask application instance.
-    :rtype: None
+    Parameters
+    ----------
+    app: Flask
+        Application whose CLI namespace could be extended.
+
+    Notes
+    -----
+    No commands are currently registered; the function exists to keep the
+    factory structure ready for future additions.
     """
     # Example:
     # @app.cli.command("seed")

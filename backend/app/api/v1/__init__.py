@@ -1,4 +1,4 @@
-"""API v1 blueprint package."""
+"""Version 1 API blueprint registry."""
 
 from __future__ import annotations
 

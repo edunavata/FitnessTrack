@@ -1,4 +1,8 @@
-"""Expose the application factory at package level."""
+"""Expose :func:`app.factory.create_app` at package import time.
+
+Importing :mod:`app` makes the ``create_app`` factory readily available for
+Flask's CLI and WSGI servers without touching the internal package layout.
+"""
 
 from __future__ import annotations
 

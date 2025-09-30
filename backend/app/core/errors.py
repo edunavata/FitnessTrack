@@ -1,5 +1,5 @@
 # app/core/errors.py
-"""Centralized JSON error handling for the API."""
+"""Centralize JSON error handling for the HTTP API."""
 
 from __future__ import annotations
 
@@ -12,18 +12,18 @@ from werkzeug.exceptions import HTTPException
 
 
 class APIError(Exception):
-    """Base API error for domain/business errors.
+    """Represent domain-level API errors rendered as JSON responses.
 
-    Parameters
+    Attributes
     ----------
-    message:
-        Human-readable error message.
-    status_code:
-        HTTP status code.
-    code:
-        Machine-readable error code (snake_case).
-    details:
-        Optional structured details for validation scenarios.
+    message: str
+        Human-readable error message displayed to clients.
+    status_code: int
+        HTTP status returned to the client.
+    code: str
+        Machine-readable error identifier in ``snake_case``.
+    details: dict[str, Any]
+        Optional structured metadata for validation or debugging contexts.
     """
 
     def __init__(
@@ -40,7 +40,13 @@ class APIError(Exception):
         self.details = details or {}
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialize error to a standard dict."""
+        """Serialize the error into a JSON-serializable dictionary.
+
+        Returns
+        -------
+        dict[str, Any]
+            Mapping with ``code`` and ``message`` plus optional ``details``.
+        """
         data: dict[str, Any] = {
             "code": self.code,
             "message": self.message,
@@ -52,27 +58,46 @@ class APIError(Exception):
 
 # Convenience domain errors (extend as needed)
 class NotFound(APIError):
+    """Error used when a requested resource cannot be located."""
+
     def __init__(self, message: str = "Resource not found") -> None:
         super().__init__(message, status_code=404, code="not_found")
 
 
 class Conflict(APIError):
+    """Error raised when the request conflicts with existing state."""
+
     def __init__(self, message: str = "Conflict") -> None:
         super().__init__(message, status_code=409, code="conflict")
 
 
 class Unauthorized(APIError):
+    """Error returned when authentication fails or is missing."""
+
     def __init__(self, message: str = "Unauthorized") -> None:
         super().__init__(message, status_code=401, code="unauthorized")
 
 
 class Forbidden(APIError):
+    """Error raised when a user lacks permission for the action."""
+
     def __init__(self, message: str = "Forbidden") -> None:
         super().__init__(message, status_code=403, code="forbidden")
 
 
 def _http_status_to_code(status_code: int) -> str:
-    """Map common HTTP status codes to error code strings."""
+    """Map common HTTP status codes to canonical error codes.
+
+    Parameters
+    ----------
+    status_code: int
+        HTTP status code produced by Werkzeug or Flask.
+
+    Returns
+    -------
+    str
+        Error code string compatible with :class:`APIError` payloads.
+    """
     mapping = {
         400: "bad_request",
         401: "unauthorized",
@@ -90,21 +115,29 @@ def _http_status_to_code(status_code: int) -> str:
 
 
 def register_error_handlers(app: Flask) -> None:
-    """Attach JSON error handlers to the Flask app.
+    """Attach JSON error handlers to the Flask application.
+
+    Parameters
+    ----------
+    app: Flask
+        Application instance receiving the error handlers.
 
     Notes
     -----
-    - Ensures *all* errors are returned as JSON (no HTML error pages).
-    - Adds a correlation `id` for 5xx errors in responses & logs.
+    All exceptions are normalized into ``{"error": ...}`` JSON payloads. When
+    unexpected errors occur, a correlation identifier is included for log
+    correlation.
     """
 
     @app.errorhandler(APIError)
     def handle_api_error(err: APIError):
+        """Return domain errors using their serialized representation."""
         payload = {"error": err.to_dict()}
         return jsonify(payload), err.status_code
 
     @app.errorhandler(HTTPException)
     def handle_http_exception(err: HTTPException):
+        """Convert Werkzeug HTTP exceptions into JSON responses."""
         # Normalize Werkzeug exceptions (e.g., 404, 405, JSON decode 400, etc.)
         status = err.code or 500
         error_code = _http_status_to_code(status)
@@ -119,6 +152,7 @@ def register_error_handlers(app: Flask) -> None:
 
     @app.errorhandler(Exception)
     def handle_unexpected_error(err: Exception):
+        """Log unexpected errors and return a generic JSON payload."""
         # Generate correlation id for logs and client
         err_id = str(uuid4())
         logging.exception("Unhandled error (id=%s)", err_id)

@@ -1,4 +1,4 @@
-"""Logging configuration utilities."""
+"""Logging configuration utilities for the Flask service."""
 
 from __future__ import annotations
 
@@ -7,16 +7,12 @@ import sys
 
 
 def configure_logging(level: str = "INFO") -> None:
-    """Configure root logger with a simple stdout handler.
+    """Configure the root logger with a simple stdout handler.
 
     Parameters
     ----------
-    level:
-        String log level (e.g., "DEBUG", "INFO", "WARNING").
-
-    Returns
-    -------
-    None
+    level: str
+        Log level name such as ``"DEBUG"`` or ``"INFO"``.
     """
     handler = logging.StreamHandler(sys.stdout)
     fmt = logging.Formatter("%(asctime)s %(levelname)s [%(name)s] %(message)s", "%Y-%m-%dT%H:%M:%S")

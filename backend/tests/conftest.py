@@ -1,10 +1,7 @@
-"""Global pytest fixtures for the backend.
+"""Pytest fixtures configuring isolated SQLAlchemy sessions for tests.
 
-These fixtures configure a fast, isolated SQLAlchemy session per test using
-an in-memory SQLite database. Tables are created once per test session and
-each test runs inside a nested transaction that is rolled back.
-
-All comments are in English. Python docstrings use strict reStructuredText.
+Tables are created once per session against an in-memory SQLite database and
+each test is wrapped in a SAVEPOINT-based transaction that is rolled back.
 """
 
 from __future__ import annotations
@@ -12,14 +9,14 @@ from __future__ import annotations
 import os
 
 import pytest
-from app.core.database import db as _db  # instancia de Flask-SQLAlchemy
-from app.factory import create_app  # tu app factory
+from app.core.database import db as _db  # Flask-SQLAlchemy database instance
+from app.factory import create_app  # Application factory under test
 from sqlalchemy import event
 from sqlalchemy.orm import scoped_session, sessionmaker
 
 
 class TestConfig:
-    """Testing configuration for creating the Flask app.
+    """Testing configuration applied to the Flask application factory.
 
     Notes
     -----
@@ -42,7 +39,7 @@ def app():
     Returns
     -------
     flask.Flask
-        The application instance with testing config loaded.
+        Application instance with :class:`TestConfig` applied.
     """
     # Ensure env-based config does not leak into tests
     os.environ.pop("DATABASE_URL", None)
@@ -55,7 +52,10 @@ def app():
 def db(app):
     """Provide the SQLAlchemy database bound to the testing app.
 
-    The tables are created once per test session and dropped at the end.
+    Yields
+    ------
+    flask_sqlalchemy.SQLAlchemy
+        Database object with tables created for the session.
     """
     with app.app_context():
         _db.create_all()
@@ -68,7 +68,10 @@ def db(app):
 def connection(db):
     """Keep a single DBAPI connection open for the whole session.
 
-    This allows SAVEPOINT-based nested transactions for each test.
+    Notes
+    -----
+    The shared connection allows nested transactions so each test runs inside
+    its own SAVEPOINT.
     """
     conn = db.engine.connect()
     try:
@@ -81,12 +84,15 @@ def connection(db):
 def session(db, connection):
     """Provide a SQLAlchemy session with a nested transaction per test.
 
+    Notes
+    -----
     Pattern (SQLAlchemy 2.0):
+
     - Begin a top-level transaction on the shared connection.
-    - Create a scoped_session bound to that connection.
+    - Create a ``scoped_session`` bound to that connection.
     - Start a nested transaction (SAVEPOINT) for the test.
     - Re-open the SAVEPOINT automatically when it ends.
-    - Roll back everything after the test and restore db.session.
+    - Roll back everything after the test and restore ``db.session``.
 
     Yields
     ------
@@ -125,7 +131,13 @@ def session(db, connection):
 
 @pytest.fixture(scope="session")
 def faker():
-    """Provide a `Faker` instance seeded for deterministic tests."""
+    """Provide a ``Faker`` instance seeded for deterministic tests.
+
+    Returns
+    -------
+    faker.Faker
+        Faker generator seeded with a stable value.
+    """
     from faker import Faker
 
     fk = Faker()
@@ -136,6 +148,14 @@ def faker():
 # -- Hook up Factory Boy to pytest SQLAlchemy session --------------------------
 @pytest.fixture(autouse=True)
 def _factories_session(session):
+    """Ensure Factory Boy uses the transactional SQLAlchemy session.
+
+    Parameters
+    ----------
+    session: scoped_session
+        Session fixture injected automatically to wire Factory Boy.
+    """
+
     from tests.factories import SQLAlchemySession
 
     SQLAlchemySession.set(session)

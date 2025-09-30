@@ -1,4 +1,4 @@
-"""Application settings with environment-based simple classes."""
+"""Application settings grouped by environment-friendly classes."""
 
 from __future__ import annotations
 
@@ -12,12 +12,25 @@ from dotenv import load_dotenv
 ENV_VAR: Final[str] = "APP_ENV"  # 'development' | 'testing' | 'production'
 
 
-# Carga .env en desarrollo (no hace nada si no existe)
+# Load a ``.env`` file locally; this is a no-op when absent in production.
 load_dotenv()
 
 
 def env_bool(name: str, default: bool = False) -> bool:
-    """Parse bools from environment variables."""
+    """Parse boolean values from environment variables.
+
+    Parameters
+    ----------
+    name: str
+        Name of the environment variable to inspect.
+    default: bool
+        Fallback returned when the variable is undefined.
+
+    Returns
+    -------
+    bool
+        ``True`` when the environment value matches typical truthy strings.
+    """
     val = os.getenv(name)
     if val is None:
         return default
@@ -25,7 +38,25 @@ def env_bool(name: str, default: bool = False) -> bool:
 
 
 class BaseConfig:
-    """Base configuration shared across environments."""
+    """Base configuration shared across environments.
+
+    Attributes
+    ----------
+    API_BASE_PREFIX: str
+        Root path for the public API routes.
+    SECRET_KEY: str
+        Flask secret key used for session signing.
+    JWT_SECRET_KEY: str
+        Secret used by :mod:`flask_jwt_extended` for token signing.
+    SQLALCHEMY_DATABASE_URI: str
+        Database connection string consumed by SQLAlchemy.
+    SQLALCHEMY_ECHO: bool
+        Emits SQL statements when ``True`` for easier debugging.
+    LOG_LEVEL: str
+        Root logging level consumed by :func:`configure_logging`.
+    CORS_ORIGINS: str
+        Comma-separated list of origins allowed to access the API.
+    """
 
     API_BASE_PREFIX = "/api"
 
@@ -52,7 +83,7 @@ class BaseConfig:
 
 
 class DevelopmentConfig(BaseConfig):
-    """Development-friendly config."""
+    """Development-friendly configuration with verbose defaults."""
 
     DEBUG = env_bool("FLASK_DEBUG", True)
     SQLALCHEMY_ECHO = env_bool("SQLALCHEMY_ECHO", False)
@@ -60,7 +91,7 @@ class DevelopmentConfig(BaseConfig):
 
 
 class TestingConfig(BaseConfig):
-    """Testing config: in-memory DB by default."""
+    """Testing configuration using an in-memory SQLite database."""
 
     TESTING = True
     DEBUG = False
@@ -70,7 +101,7 @@ class TestingConfig(BaseConfig):
 
 
 class ProductionConfig(BaseConfig):
-    """Production config."""
+    """Production configuration with conservative logging and safety flags."""
 
     DEBUG = False
     SQLALCHEMY_ECHO = False
@@ -86,10 +117,17 @@ CONFIG_MAP: Mapping[str, type[BaseConfig]] = {
 
 
 def get_config() -> type[BaseConfig]:
-    """Return the selected config class based on ``APP_ENV``.
+    """Return the configuration class selected via ``APP_ENV``.
 
-    :returns: Configuration class to pass to ``app.config.from_object``.
-    :rtype: Type[BaseConfig]
+    Returns
+    -------
+    type[BaseConfig]
+        Config class consumed by :meth:`Flask.from_object`.
+
+    Notes
+    -----
+    Defaults to :class:`DevelopmentConfig` when ``APP_ENV`` is unset or holds
+    an unknown value.
     """
     name = os.getenv(ENV_VAR, "development").strip().lower()
     return CONFIG_MAP.get(name, DevelopmentConfig)

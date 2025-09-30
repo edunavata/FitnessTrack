@@ -1,3 +1,5 @@
+"""Models for training routines and their prescribed exercises."""
+
 from __future__ import annotations
 
 from sqlalchemy import UniqueConstraint
@@ -6,12 +8,19 @@ from .base import PKMixin, ReprMixin, TimestampMixin, db
 
 
 class Routine(PKMixin, TimestampMixin, ReprMixin, db.Model):
-    """User routine template.
+    """Template describing a user's planned workout routine.
 
-    :ivar id: Primary key.
-    :ivar user_id: Owner user id.
-    :ivar name: Routine name.
-    :ivar notes: Routine notes.
+    Attributes
+    ----------
+    user_id: sqlalchemy.Column
+        Foreign key referencing :class:`app.models.user.User` who owns the
+        routine.
+    name: sqlalchemy.Column
+        Human-readable routine name shown to the user.
+    notes: sqlalchemy.Column
+        Optional free-form notes explaining the routine intent.
+    exercises: sqlalchemy.orm.RelationshipProperty
+        Ordered collection of :class:`RoutineExercise` prescriptions.
     """
 
     __tablename__ = "routines"
@@ -36,16 +45,24 @@ class Routine(PKMixin, TimestampMixin, ReprMixin, db.Model):
 
 
 class RoutineExercise(PKMixin, TimestampMixin, ReprMixin, db.Model):
-    """Exercise prescription inside a routine.
+    """Exercise prescription belonging to a routine template.
 
-    :ivar id: Primary key.
-    :ivar routine_id: Parent routine id.
-    :ivar exercise_id: Exercise reference.
-    :ivar order: Display order (1-based).
-    :ivar target_sets: Planned number of sets.
-    :ivar target_reps: Planned reps per set (generic).
-    :ivar target_rpe: Planned RPE (nullable).
-    :ivar rest_sec: Planned rest time between sets in seconds.
+    Attributes
+    ----------
+    routine_id: sqlalchemy.Column
+        Parent routine identifier with cascade deletes.
+    exercise_id: sqlalchemy.Column
+        Reference to the catalog :class:`app.models.exercise.Exercise`.
+    order: sqlalchemy.Column
+        Display order (1-based) enforced by ``uq_routine_order``.
+    target_sets: sqlalchemy.Column
+        Planned number of sets for the exercise.
+    target_reps: sqlalchemy.Column
+        Planned repetitions per set.
+    target_rpe: sqlalchemy.Column
+        Optional target rate of perceived exertion.
+    rest_sec: sqlalchemy.Column
+        Rest time between sets in seconds.
     """
 
     __tablename__ = "routine_exercises"

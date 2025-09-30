@@ -6,10 +6,14 @@ from app.core.database import db
 
 
 class TimestampMixin:
-    """Common timestamps mixin.
+    """Add ``created_at`` and ``updated_at`` timestamp columns to models.
 
-    :ivar created_at: Creation datetime in UTC.
-    :ivar updated_at: Last update datetime in UTC.
+    Attributes
+    ----------
+    created_at
+        Creation timestamp stored in UTC.
+    updated_at
+        Timestamp automatically refreshed on updates.
     """
 
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
@@ -19,16 +23,19 @@ class TimestampMixin:
 
 
 class PKMixin:
-    """Primary key mixin.
+    """Provide a surrogate integer primary key column named ``id``.
 
-    :ivar id: Surrogate integer primary key.
+    Attributes
+    ----------
+    id
+        Auto-incrementing primary key for SQLAlchemy models.
     """
 
     id = db.Column(db.Integer, primary_key=True)
 
 
 class ReprMixin:
-    """Human-friendly __repr__ mixin."""
+    """Provide a concise ``__repr__`` for debugging models."""
 
     def __repr__(self) -> str:
         # Short and useful representation for debugging

@@ -1,4 +1,4 @@
-"""User model definition."""
+"""User model storing authentication credentials and profile metadata."""
 
 from __future__ import annotations
 
@@ -10,18 +10,27 @@ from .base import PKMixin, ReprMixin, TimestampMixin, db
 
 
 class User(PKMixin, TimestampMixin, ReprMixin, db.Model):
-    """Minimal user entity (later extended for JWT auth).
+    """Persist local user accounts for authentication.
 
     Attributes
     ----------
-    id:
-        Primary key.
-    email:
-        Unique email address.
-    password_hash:
-        Hashed user password.
-    created_at:
-        Creation timestamp.
+    email: sqlalchemy.Column
+        Unique email address used as the login identifier.
+    name: sqlalchemy.Column
+        Display name associated with the account.
+    password_hash: sqlalchemy.Column
+        Hashed password generated from the write-only ``password`` property.
+    routines: sqlalchemy.orm.RelationshipProperty
+        Collection of :class:`app.models.routine.Routine` templates owned by
+        the user.
+    workouts: sqlalchemy.orm.RelationshipProperty
+        Collection of :class:`app.models.workout.Workout` entries logged by the
+        user.
+
+    Notes
+    -----
+    Password hashing relies on Werkzeug helpers and uses the application-wide
+    secret configuration.
     """
 
     __tablename__ = "users"
@@ -36,14 +45,37 @@ class User(PKMixin, TimestampMixin, ReprMixin, db.Model):
 
     @property
     def password(self) -> str:
-        """Prevent reading the raw password."""
+        """Prevent reading the raw password.
+
+        Raises
+        ------
+        AttributeError
+            Always raised because plaintext passwords are never exposed.
+        """
         raise AttributeError("password is write-only")
 
     @password.setter
     def password(self, value: str) -> None:
-        """Hash and store the password."""
+        """Hash and store the password via Werkzeug utilities.
+
+        Parameters
+        ----------
+        value: str
+            Plaintext password provided by the caller.
+        """
         self.password_hash = generate_password_hash(value)
 
     def verify_password(self, value: str) -> bool:
-        """Check a plaintext password against the stored hash."""
+        """Check a plaintext password against the stored hash.
+
+        Parameters
+        ----------
+        value: str
+            Password candidate to verify.
+
+        Returns
+        -------
+        bool
+            ``True`` when the provided password matches the stored hash.
+        """
         return cast(bool, check_password_hash(self.password_hash, value))

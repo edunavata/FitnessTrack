@@ -1,4 +1,4 @@
-"""Health and readiness endpoints."""
+"""Health and readiness endpoints for probes."""
 
 from __future__ import annotations
 
@@ -9,23 +9,33 @@ bp = Blueprint("health", __name__)
 
 @bp.get("/healthz")
 def healthz():
-    """Liveness probe endpoint.
+    """Report service liveness for container orchestrators.
 
     Returns
     -------
     dict
-        Simple status payload.
+        JSON payload ``{"status": "ok"}`` with HTTP ``200``.
+
+    Notes
+    -----
+    The handler performs no dependency checks and simply confirms the process
+    is running.
     """
     return {"status": "ok"}
 
 
 @bp.get("/readiness")
 def readiness():
-    """Readiness probe endpoint.
+    """Expose readiness state used before receiving traffic.
 
     Returns
     -------
     dict
-        Simple readiness payload (we can expand with DB checks later).
+        JSON payload ``{"ready": True}`` with HTTP ``200``.
+
+    Notes
+    -----
+    No downstream service checks are executed yet; expand this endpoint when
+    readiness should cover database or cache availability.
     """
     return {"ready": True}

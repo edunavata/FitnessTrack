@@ -1,4 +1,4 @@
-"""Tiny helpers used across tests."""
+"""Tiny helpers shared across test modules."""
 
 from __future__ import annotations
 
@@ -11,8 +11,13 @@ def not_raises(exception: type[BaseException]):
 
     Parameters
     ----------
-    exception:
-        Exception type that should not be raised.
+    exception: type[BaseException]
+        Exception type that should not be raised within the context.
+
+    Yields
+    ------
+    None
+        Control enters the managed block when the exception is absent.
     """
     try:
         yield

@@ -1,3 +1,5 @@
+"""Models capturing performed workouts and logged sets."""
+
 from __future__ import annotations
 
 from datetime import date
@@ -8,14 +10,23 @@ from .base import PKMixin, ReprMixin, TimestampMixin, db
 
 
 class Workout(PKMixin, TimestampMixin, ReprMixin, db.Model):
-    """A performed workout session (training day).
+    """A performed workout session recorded by a user.
 
-    :ivar id: Primary key.
-    :ivar user_id: Owner user id.
-    :ivar routine_id: Optional routine source.
-    :ivar date: Calendar date.
-    :ivar duration_min: Optional duration in minutes.
-    :ivar notes: Free-form notes.
+    Attributes
+    ----------
+    user_id: sqlalchemy.Column
+        Owner of the workout entry.
+    routine_id: sqlalchemy.Column
+        Optional routine template (:class:`app.models.routine.Routine`) the
+        workout was based on.
+    date: sqlalchemy.Column
+        Calendar date when the workout took place.
+    duration_min: sqlalchemy.Column
+        Optional session duration in minutes.
+    notes: sqlalchemy.Column
+        Free-form notes captured after the session.
+    exercises: sqlalchemy.orm.RelationshipProperty
+        Ordered list of :class:`WorkoutExercise` instances logged that day.
     """
 
     __tablename__ = "workouts"
@@ -45,13 +56,20 @@ class Workout(PKMixin, TimestampMixin, ReprMixin, db.Model):
 
 
 class WorkoutExercise(PKMixin, TimestampMixin, ReprMixin, db.Model):
-    """An exercise performed within a workout.
+    """An exercise performed within a workout session.
 
-    :ivar id: Primary key.
-    :ivar workout_id: Parent workout id.
-    :ivar exercise_id: Exercise reference.
-    :ivar order: Display order (1-based).
-    :ivar notes: Optional notes (tempo, cues).
+    Attributes
+    ----------
+    workout_id: sqlalchemy.Column
+        Parent workout identifier with cascade deletes.
+    exercise_id: sqlalchemy.Column
+        Link to the catalog :class:`app.models.exercise.Exercise` performed.
+    order: sqlalchemy.Column
+        Display order (1-based) enforced by ``uq_workout_order``.
+    notes: sqlalchemy.Column
+        Optional technique or tempo notes saved during logging.
+    sets: sqlalchemy.orm.RelationshipProperty
+        Collection of :class:`WorkoutSet` entries for the exercise.
     """
 
     __tablename__ = "workout_exercises"
@@ -80,16 +98,24 @@ class WorkoutExercise(PKMixin, TimestampMixin, ReprMixin, db.Model):
 
 
 class WorkoutSet(PKMixin, TimestampMixin, ReprMixin, db.Model):
-    """A single set performed for a workout exercise.
+    """A single set performed for a workout exercise entry.
 
-    :ivar id: Primary key.
-    :ivar workout_exercise_id: Parent workout-exercise id.
-    :ivar set_index: Ordinal set index (1-based).
-    :ivar reps: Repetitions completed.
-    :ivar weight_kg: Weight in kilograms (nullable for BW exercises).
-    :ivar rpe: Rate of perceived exertion (nullable).
-    :ivar rir: Reps in reserve (nullable).
-    :ivar time_sec: Time under tension or work time in seconds (nullable, e.g., planks).
+    Attributes
+    ----------
+    workout_exercise_id: sqlalchemy.Column
+        Parent :class:`WorkoutExercise` identifier.
+    set_index: sqlalchemy.Column
+        Ordinal index enforcing uniqueness per exercise.
+    reps: sqlalchemy.Column
+        Count of repetitions completed for the set.
+    weight_kg: sqlalchemy.Column
+        Optional weight used, stored as ``Numeric(6, 2)``.
+    rpe: sqlalchemy.Column
+        Optional rate of perceived exertion recorded by the user.
+    rir: sqlalchemy.Column
+        Optional reps-in-reserve metric.
+    time_sec: sqlalchemy.Column
+        Optional time under tension for time-based exercises.
     """
 
     __tablename__ = "workout_sets"
