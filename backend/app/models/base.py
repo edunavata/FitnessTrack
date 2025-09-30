@@ -2,9 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from flask_sqlalchemy import SQLAlchemy
-
-db = SQLAlchemy()
+from app.core.database import db
 
 
 class TimestampMixin:
