@@ -1,4 +1,4 @@
-"""Authentication endpoints using JWT."""
+"""Authentication endpoints using JWT access tokens."""
 
 from __future__ import annotations
 
@@ -19,7 +19,26 @@ bp = Blueprint("auth", __name__)
 
 @bp.post("/register")
 def register():
-    """Create a user with hashed password."""
+    """Register a new account and persist hashed credentials.
+
+    Returns
+    -------
+    tuple[dict[str, int | str], int]
+        JSON payload containing the newly created user's ``id`` and ``email``
+        plus the ``201 Created`` status code.
+
+    Raises
+    ------
+    Conflict
+        If another user already exists with the submitted email address.
+
+    Notes
+    -----
+    - Request payload must include ``email`` and ``password`` fields that pass
+      :class:`app.schemas.RegisterSchema` validation.
+    - Passwords are hashed via :meth:`app.models.user.User.password` before
+      persistence; no plain text storage occurs.
+    """
     data = load_data(RegisterSchema(), request.get_json() or {})
     email = data["email"]
     password = data["password"]
@@ -35,7 +54,25 @@ def register():
 
 @bp.post("/login")
 def login():
-    """Authenticate user and return a JWT."""
+    """Authenticate credentials and issue a JWT access token.
+
+    Returns
+    -------
+    dict[str, str]
+        JSON payload with an ``access_token`` encoded by
+        :func:`flask_jwt_extended.create_access_token`.
+
+    Raises
+    ------
+    Unauthorized
+        If the email is unknown or the password verification fails.
+
+    Notes
+    -----
+    Requests are validated using :class:`app.schemas.LoginSchema`. The route
+    does not throttle attempts, so clients should implement their own retry
+    handling.
+    """
     data = load_data(LoginSchema(), request.get_json() or {})
     email = data["email"]
     password = data["password"]
@@ -51,7 +88,25 @@ def login():
 @bp.get("/me")
 @jwt_required()
 def me():
-    """Return the authenticated user's info."""
+    """Return the authenticated user's profile details.
+
+    Returns
+    -------
+    dict[str, int | str]
+        JSON payload exposing the current user's ``id`` and ``email``.
+
+    Raises
+    ------
+    Unauthorized
+        If the JWT identity is missing or does not correspond to a persisted
+        user.
+
+    Notes
+    -----
+    Requires a valid ``Authorization: Bearer`` header produced by the login
+    endpoint. The handler performs a database lookup on each call and does not
+    cache results.
+    """
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
     if user is None:

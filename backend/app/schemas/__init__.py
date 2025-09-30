@@ -1,4 +1,4 @@
-"""Schema utilities and exports."""
+"""Schema utilities centralizing Marshmallow helpers and exports."""
 
 from __future__ import annotations
 
@@ -10,14 +10,19 @@ from app.core.errors import APIError
 
 
 def load_data(schema: Schema, data: dict[str, Any]) -> dict[str, Any]:
-    """Validate *data* against *schema* and return result.
+    """Validate a payload using the provided schema and return the result.
 
     Parameters
     ----------
-    schema:
-        An instance of a Marshmallow :class:`Schema`.
-    data:
-        The input payload to validate.
+    schema: marshmallow.Schema
+        Schema instance used to deserialize and validate the payload.
+    data: dict[str, Any]
+        Raw request payload typically obtained from ``request.get_json``.
+
+    Returns
+    -------
+    dict[str, Any]
+        Deserialized payload produced by ``schema.load``.
 
     Raises
     ------

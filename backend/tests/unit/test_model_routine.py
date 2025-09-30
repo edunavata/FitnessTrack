@@ -1,4 +1,4 @@
-"""Unit tests for `Routine` and `RoutineExercise` models."""
+"""Unit tests validating Routine and RoutineExercise persistence rules."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ class TestRoutineModel:
 
     @pytest.mark.unit
     def test_create_basic_routine(self, session):
-        """Factory should create a valid routine with owner and timestamps."""
+        """Arrange a routine via the factory, flush it, and assert ownership and timestamps exist."""
         r = RoutineFactory()
         session.add(r)
         session.flush()
@@ -27,7 +27,7 @@ class TestRoutineModel:
 
     @pytest.mark.unit
     def test_name_required(self, session):
-        """`name` is NOT NULL."""
+        """Arrange a routine missing ``name``, attempt to flush, and verify the database rejects it."""
         u = UserFactory()
         session.add(u)
         session.flush()
@@ -38,7 +38,7 @@ class TestRoutineModel:
 
     @pytest.mark.unit
     def test_user_required(self, session):
-        """`user_id` is NOT NULL."""
+        """Arrange a routine without ``user_id``, flush, and ensure integrity enforcement triggers."""
         session.add(Routine(user_id=None, name="No owner"))
         with pytest.raises(IntegrityError):
             session.flush()
@@ -49,7 +49,7 @@ class TestRoutineExerciseModel:
 
     @pytest.mark.unit
     def test_create_basic_routine_exercise(self, session):
-        """Factory should create a valid routine exercise with defaults."""
+        """Arrange a routine exercise via the factory, flush, and assert defaults and relationships are populated."""
         rx = RoutineExerciseFactory()
         session.add(rx)
         session.flush()
@@ -69,7 +69,7 @@ class TestRoutineExerciseModel:
 
     @pytest.mark.unit
     def test_order_unique_within_routine(self, session):
-        """(routine_id, order) must be unique within a routine."""
+        """Arrange two routine exercises sharing an order, flush, and expect a uniqueness violation."""
         r = RoutineFactory()
         e1 = ExerciseFactory(name="Bench Press")
         e2 = ExerciseFactory(name="Incline Bench")
@@ -86,7 +86,7 @@ class TestRoutineExerciseModel:
 
     @pytest.mark.unit
     def test_same_order_allowed_in_different_routines(self, session):
-        """Same `order` is allowed across different routines."""
+        """Arrange exercises in separate routines with the same order, flush both, and confirm the constraint allows it."""
         r1 = RoutineFactory(name="A")
         r2 = RoutineFactory(name="B")
         ex = ExerciseFactory(name="Row")
@@ -102,7 +102,7 @@ class TestRoutineExerciseModel:
 
     @pytest.mark.unit
     def test_relationship_ordering_by_order(self, session):
-        """Routine.exercises should be ordered by `order` as declared in relationship."""
+        """Arrange out-of-order inserts, access the relationship, and assert ordering follows the ``order`` column."""
         r = RoutineFactory()
         e1 = ExerciseFactory(name="Lat Pulldown")
         e2 = ExerciseFactory(name="Seated Row")
@@ -124,7 +124,7 @@ class TestRoutineExerciseModel:
 
     @pytest.mark.unit
     def test_delete_routine_cascades_children_via_orphan(self, session):
-        """Deleting Routine should remove its RoutineExercise via ORM delete-orphan."""
+        """Arrange a routine with a child, delete the parent, and assert delete-orphan cascading removes dependents."""
         rx = RoutineExerciseFactory()
         session.add(rx)
         session.flush()

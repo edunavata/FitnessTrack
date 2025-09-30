@@ -1,3 +1,5 @@
+"""Workout routine template models."""
+
 from __future__ import annotations
 
 from sqlalchemy import UniqueConstraint
@@ -8,12 +10,22 @@ from .base import PKMixin, ReprMixin, TimestampMixin
 
 
 class Routine(PKMixin, TimestampMixin, ReprMixin, db.Model):
-    """User routine template.
+    """Represent a reusable template of exercises planned by a user.
 
-    :ivar id: Primary key.
-    :ivar user_id: Owner user id.
-    :ivar name: Routine name.
-    :ivar notes: Routine notes.
+    Attributes
+    ----------
+    id: int
+        Surrogate primary key.
+    user_id: int
+        Foreign key referencing the owning :class:`app.models.user.User`.
+    name: str
+        Display name of the routine.
+    notes: str | None
+        Optional notes describing the intent of the routine.
+    user: app.models.user.User
+        ORM relationship back to the owning user.
+    exercises: list[RoutineExercise]
+        Ordered collection of prescribed exercises including set/rep targets.
     """
 
     __tablename__ = "routines"
@@ -38,16 +50,30 @@ class Routine(PKMixin, TimestampMixin, ReprMixin, db.Model):
 
 
 class RoutineExercise(PKMixin, TimestampMixin, ReprMixin, db.Model):
-    """Exercise prescription inside a routine.
+    """Describe how an exercise should be performed within a routine.
 
-    :ivar id: Primary key.
-    :ivar routine_id: Parent routine id.
-    :ivar exercise_id: Exercise reference.
-    :ivar order: Display order (1-based).
-    :ivar target_sets: Planned number of sets.
-    :ivar target_reps: Planned reps per set (generic).
-    :ivar target_rpe: Planned RPE (nullable).
-    :ivar rest_sec: Planned rest time between sets in seconds.
+    Attributes
+    ----------
+    id: int
+        Surrogate primary key.
+    routine_id: int
+        Foreign key referencing the owning :class:`Routine`.
+    exercise_id: int
+        Foreign key pointing to the catalog :class:`app.models.exercise.Exercise`.
+    order: int
+        One-based display order enforced per routine via unique constraint.
+    target_sets: int
+        Suggested number of sets per session.
+    target_reps: int
+        Suggested number of repetitions per set.
+    target_rpe: float | None
+        Optional target rate of perceived exertion.
+    rest_sec: int
+        Planned rest duration between sets in seconds.
+    routine: Routine
+        Relationship back to the routine template.
+    exercise: app.models.exercise.Exercise
+        Relationship to the exercise catalog entry.
     """
 
     __tablename__ = "routine_exercises"

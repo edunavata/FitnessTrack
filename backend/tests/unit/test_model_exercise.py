@@ -1,4 +1,4 @@
-"""Unit tests for the `Exercise` model."""
+"""Unit tests covering constraints and defaults on the Exercise model."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ class TestExerciseModel:
 
     @pytest.mark.unit
     def test_create_basic_exercise(self, session):
-        """Factory should create a valid exercise with defaults."""
+        """Arrange an exercise via the factory, insert it, and assert defaults persist."""
         e = ExerciseFactory()
         session.add(e)
         session.flush()
@@ -26,7 +26,7 @@ class TestExerciseModel:
 
     @pytest.mark.unit
     def test_name_unique(self, session):
-        """Exercise name should be unique."""
+        """Arrange two exercises sharing a name, flush, and expect an integrity error."""
         _ = ExerciseFactory(name="Squat", muscle_group=MuscleGroup.QUADS)
         session.flush()
 
@@ -36,7 +36,7 @@ class TestExerciseModel:
 
     @pytest.mark.unit
     def test_muscle_group_required(self, session):
-        """muscle_group must not be NULL."""
+        """Arrange an exercise missing ``muscle_group``, flush, and assert the DB rejects it."""
         e = Exercise(name="Deadlift", muscle_group=None)
         session.add(e)
         with pytest.raises(IntegrityError):
@@ -44,7 +44,7 @@ class TestExerciseModel:
 
     @pytest.mark.unit
     def test_is_unilateral_default_false(self, session):
-        """is_unilateral should default to False if not set."""
+        """Arrange an exercise without overriding ``is_unilateral``, flush, and confirm it defaults to ``False``."""
         e = ExerciseFactory(is_unilateral=None)  # factory override
         session.add(e)
         session.flush()

@@ -1,4 +1,4 @@
-"""Factories for User-related models."""
+"""Factory Boy definitions for user entities used across tests."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from tests.factories import BaseFactory
 
 
 class UserFactory(BaseFactory):
-    """Factory for the `User` model."""
+    """Build persisted :class:`app.models.user.User` instances."""
 
     class Meta:
         model = User
@@ -21,7 +21,19 @@ class UserFactory(BaseFactory):
 
     @factory.post_generation
     def password(obj, create, extracted, **kwargs):
-        """Set password using the model's property for proper hashing."""
+        """Set the password using the model's property for proper hashing.
+
+        Parameters
+        ----------
+        obj: app.models.user.User
+            Instance being initialized by Factory Boy.
+        create: bool
+            Indicates whether the object was actually persisted.
+        extracted: str | None
+            Optional password override supplied by the factory call.
+        **kwargs: dict[str, object]
+            Unused additional keyword arguments from Factory Boy.
+        """
         value = extracted or "Passw0rd!"
         # Use model's setter so we test the domain logic
         obj.password = value

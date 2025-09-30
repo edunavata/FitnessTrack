@@ -7,12 +7,17 @@ from contextlib import contextmanager
 
 @contextmanager
 def not_raises(exception: type[BaseException]):
-    """Context manager asserting that an exception is *not* raised.
+    """Assert that the wrapped block does not raise a given exception.
 
     Parameters
     ----------
-    exception:
-        Exception type that should not be raised.
+    exception: type[BaseException]
+        Exception type that must not occur within the context manager.
+
+    Raises
+    ------
+    AssertionError
+        If ``exception`` is raised by the wrapped block.
     """
     try:
         yield

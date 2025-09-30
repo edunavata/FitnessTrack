@@ -23,7 +23,7 @@ class TestWorkoutModel:
 
     @pytest.mark.unit
     def test_create_basic_workout(self, session):
-        """Factory should create a valid workout with user and timestamps."""
+        """Arrange a workout via the factory, flush, and assert ownership and timestamps populate."""
         w = WorkoutFactory()
         session.add(w)
         session.flush()
@@ -35,17 +35,17 @@ class TestWorkoutModel:
 
     @pytest.mark.unit
     def test_user_required(self, session):
-        """`user_id` is NOT NULL."""
+        """Arrange a workout without ``user_id``, flush, and expect an integrity failure."""
         session.add(Workout(user_id=None))
         with pytest.raises(IntegrityError):
             session.flush()
 
     @pytest.mark.unit
     def test_optional_routine_and_duration(self, session):
-        """routine_id and duration_min are optional."""
+        """Arrange a workout with optional fields, flush, and confirm nullable columns persist."""
         r = RoutineFactory()
         w = WorkoutFactory(duration_min=45)
-        # opcionalmente asignamos routine explícitamente:
+        # Optionally associate a specific routine for this scenario.
         w.routine = r
 
         session.add_all([r, w])
@@ -60,7 +60,7 @@ class TestWorkoutExerciseModel:
 
     @pytest.mark.unit
     def test_create_basic_workout_exercise(self, session):
-        """Factory should create a valid workout exercise with defaults."""
+        """Arrange a workout exercise via the factory, flush, and assert relationships and timestamps populate."""
         we = WorkoutExerciseFactory()
         session.add(we)
         session.flush()
@@ -72,7 +72,7 @@ class TestWorkoutExerciseModel:
 
     @pytest.mark.unit
     def test_order_unique_within_workout(self, session):
-        """(workout_id, order) must be unique within a workout."""
+        """Arrange two workout exercises sharing an order, flush, and expect the unique constraint to raise."""
         w = WorkoutFactory()
         ex1 = ExerciseFactory(name="Bench Press")
         ex2 = ExerciseFactory(name="Incline Bench")
@@ -90,7 +90,7 @@ class TestWorkoutExerciseModel:
 
     @pytest.mark.unit
     def test_same_order_allowed_in_different_workouts(self, session):
-        """Same `order` is allowed across different workouts."""
+        """Arrange exercises in different workouts with matching order, flush both, and confirm no error occurs."""
         w1 = WorkoutFactory()
         w2 = WorkoutFactory()
         ex = ExerciseFactory(name="Row")
@@ -104,7 +104,7 @@ class TestWorkoutExerciseModel:
 
     @pytest.mark.unit
     def test_relationship_ordering_by_order(self, session):
-        """Workout.exercises should be ordered by `order` as per relationship."""
+        """Arrange out-of-order inserts, access ``workout.exercises``, and verify results sorted by ``order``."""
         w = WorkoutFactory()
         ex1 = ExerciseFactory(name="Lat Pulldown")
         ex2 = ExerciseFactory(name="Seated Row")
@@ -124,7 +124,7 @@ class TestWorkoutExerciseModel:
 
     @pytest.mark.unit
     def test_delete_workout_cascades_children(self, session):
-        """Deleting Workout should remove its WorkoutExercises and WorkoutSets."""
+        """Arrange a workout with nested children, delete the parent, and assert cascading removes all rows."""
         ws = WorkoutSetFactory()  # creates workout, workout_exercise, and set
         w = ws.workout_exercise.workout
         we = ws.workout_exercise
@@ -147,7 +147,7 @@ class TestWorkoutSetModel:
 
     @pytest.mark.unit
     def test_create_basic_set(self, session):
-        """Factory should create a valid set with defaults."""
+        """Arrange a workout set via the factory, flush, and assert defaults and relationships remain intact."""
         s = WorkoutSetFactory()
         session.add(s)
         session.flush()
@@ -162,7 +162,7 @@ class TestWorkoutSetModel:
 
     @pytest.mark.unit
     def test_set_index_unique_within_workout_exercise(self, session):
-        """(workout_exercise_id, set_index) must be unique."""
+        """Arrange duplicate set indexes for one exercise, flush, and expect a uniqueness violation."""
         we = WorkoutExerciseFactory()
         session.add(we)
         session.flush()
@@ -176,7 +176,7 @@ class TestWorkoutSetModel:
 
     @pytest.mark.unit
     def test_nullable_metrics_fields(self, session):
-        """weight_kg, rpe, rir, time_sec can be NULL."""
+        """Arrange a workout set with all optional metrics null, flush, and confirm retrieval preserves ``None`` values."""
         we = WorkoutExerciseFactory()
         s = WorkoutSet(
             workout_exercise_id=we.id,

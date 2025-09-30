@@ -1,4 +1,4 @@
-"""Logging configuration utilities."""
+"""Logging configuration utilities for the application factory."""
 
 from __future__ import annotations
 
@@ -7,16 +7,18 @@ import sys
 
 
 def configure_logging(level: str = "INFO") -> None:
-    """Configure root logger with a simple stdout handler.
+    """Configure the root logger with a stdout handler.
 
     Parameters
     ----------
-    level:
-        String log level (e.g., "DEBUG", "INFO", "WARNING").
+    level: str, optional
+        Logging level name such as ``"DEBUG"`` or ``"INFO"``. The value is
+        uppercased before being applied.
 
-    Returns
-    -------
-    None
+    Notes
+    -----
+    Existing root handlers are cleared before installing the new handler to
+    avoid duplicate log lines when the app factory is invoked multiple times.
     """
     handler = logging.StreamHandler(sys.stdout)
     fmt = logging.Formatter("%(asctime)s %(levelname)s [%(name)s] %(message)s", "%Y-%m-%dT%H:%M:%S")

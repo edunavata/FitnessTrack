@@ -1,4 +1,4 @@
-"""Unit tests for the `User` model."""
+"""Unit tests ensuring User model hashing, uniqueness, and timestamps."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ class TestUserModel:
 
     @pytest.mark.unit
     def test_password_is_hashed_and_write_only(self, session):
-        """Password setter should hash and disallow reading."""
+        """Arrange a user with a known password, flush, then assert hashing and access protections hold."""
         u = UserFactory(email="alice@example.com", password="S3cret!!!")
         session.add(u)
         session.flush()
@@ -25,7 +25,7 @@ class TestUserModel:
 
     @pytest.mark.unit
     def test_verify_password(self, session):
-        """verify_password should return True for correct password."""
+        """Arrange a user with a password, invoke ``verify_password``, and assert correct and incorrect inputs behave as expected."""
         u = UserFactory(email="bob@example.com", password="Correct#1")
         session.add(u)
         session.flush()
@@ -35,7 +35,7 @@ class TestUserModel:
 
     @pytest.mark.unit
     def test_email_unique(self, session):
-        """Unique constraint on email should be enforced."""
+        """Arrange two users sharing an email, flush the second, and expect an integrity error."""
         _ = UserFactory(email="dup@example.com")
         session.flush()
 
@@ -46,7 +46,7 @@ class TestUserModel:
 
     @pytest.mark.unit
     def test_timestamps_present(self, session):
-        """created_at/updated_at should be filled by mixin defaults."""
+        """Arrange a user, flush it, and assert timestamp columns populate via the mixin defaults."""
         u = UserFactory()
         session.add(u)
         session.flush()

@@ -1,3 +1,5 @@
+"""Application factory wiring Flask extensions and blueprints."""
+
 from __future__ import annotations
 
 from flask import Flask
@@ -12,6 +14,35 @@ def create_app(
     instance_relative_config: bool = True,
     instance_config_filename: str = "config.py",
 ) -> Flask:
+    """Build and configure the Flask application.
+
+    Parameters
+    ----------
+    config: str | type[BaseConfig] | object | None, optional
+        Explicit configuration object or import string. ``None`` selects the
+        configuration from :func:`app.core.config.get_config` using
+        ``APP_ENV``.
+    instance_relative_config: bool, optional
+        Whether to resolve instance configuration files relative to
+        ``instance_path``. Defaults to ``True`` to support per-deployment
+        overrides.
+    instance_config_filename: str, optional
+        Name of the optional instance configuration file loaded via
+        :meth:`flask.Config.from_pyfile`.
+
+    Returns
+    -------
+    flask.Flask
+        Fully initialized application with extensions, CORS, proxies, API, and
+        error handlers registered.
+
+    Notes
+    -----
+    - Logging is configured eagerly so early failures are captured.
+    - The application will attempt to load ``instance_config_filename`` even
+      when ``config`` is provided unless ``instance_relative_config`` is
+      ``False``.
+    """
     app = Flask(__name__, instance_relative_config=instance_relative_config)
 
     # Config
