@@ -2,16 +2,17 @@
 
 from __future__ import annotations
 
-from app.core.database import db
-from app.core.errors import Conflict, Unauthorized
-from app.models.user import User
-from app.schemas import LoginSchema, RegisterSchema, load_data
 from flask import Blueprint, request
 from flask_jwt_extended import (
     create_access_token,
     get_jwt_identity,
     jwt_required,
 )
+
+from app.core.database import db
+from app.core.errors import Conflict, Unauthorized
+from app.models.user import User
+from app.schemas import LoginSchema, RegisterSchema, load_data
 
 bp = Blueprint("auth", __name__)
 
