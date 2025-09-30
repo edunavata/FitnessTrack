@@ -92,13 +92,13 @@ The command builds all images, applies migrations automatically, and starts ever
 
 ## Running the Backend Only
 
-Use the backend-specific Compose setup when iterating on the API without the frontend:
+Use the root Compose file to start only the API and its database dependencies:
 
 ```bash
-docker compose -f backend/compose.yaml up --build
+docker compose up --build backend db
 ```
 
-Alternatively, build and run the backend image directly:
+Alternatively, build and run the backend image directly without Compose:
 
 ```bash
 docker build -f deploy/docker/backend.Dockerfile -t fitnesstrack-backend .
