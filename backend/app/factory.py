@@ -7,6 +7,7 @@ from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from flask_migrate import Migrate
 
+from app.api import register_blueprint_group
 from app.core.config import get_config
 from app.core.database import db
 from app.core.errors import register_error_handlers
@@ -40,14 +41,19 @@ def create_app() -> Flask:
     allowed_origins = [o.strip() for o in origins.split(",") if o.strip()]
     CORS(app, resources={r"/api/*": {"origins": allowed_origins}})
 
-    # Blueprints
-    from app.api.v1.auth import bp as auth_bp
-    from app.api.v1.health import bp as health_bp
-
-    app.register_blueprint(health_bp, url_prefix="/api/v1")
-    app.register_blueprint(auth_bp, url_prefix="/api/v1/auth")
+    _register_blueprints(app)
 
     # Centralized error handlers (JSON-only)
     register_error_handlers(app)
 
     return app
+
+
+def _register_blueprints(app: Flask) -> None:
+    """Register API blueprints by version."""
+    api_base = app.config.get("API_BASE_PREFIX", "/api")
+    # v1
+    from app.api.v1 import API_VERSION as V1
+    from app.api.v1 import REGISTRY as V1_REGISTRY
+
+    register_blueprint_group(app, base_prefix=f"{api_base}/{V1}", entries=V1_REGISTRY)
