@@ -71,7 +71,7 @@ A full-stack fitness workout tracking application built to consolidate the skill
    ```
 3. **Install backend dependencies**
    ```bash
-   pip install -r backend/requirements-dev.txt
+   pip install -r backend/requirements.txt
    ```
 4. **Install frontend dependencies**
    ```bash
