@@ -1,3 +1,5 @@
+"""Global Flask extension instances and initialization helpers."""
+
 from __future__ import annotations
 
 from flask import Flask
@@ -12,11 +14,14 @@ jwt = JWTManager()
 
 
 def init_app(app: Flask) -> None:
-    """
-    Initialize Flask extensions.
+    """Initialize SQLAlchemy, migrations, and JWT extensions.
 
-    :param app: Flask application.
-    :type app: Flask
+    Parameters
+    ----------
+    app: flask.Flask
+        Application used to bind extension instances. This call imports the
+        :mod:`app.models` package to ensure SQLAlchemy metadata is ready for
+        migrations.
     """
     db.init_app(app)
 

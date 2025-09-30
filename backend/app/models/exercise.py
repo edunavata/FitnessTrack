@@ -1,3 +1,5 @@
+"""Exercise catalog models and enumerations."""
+
 from __future__ import annotations
 
 import enum
@@ -8,7 +10,7 @@ from .base import PKMixin, ReprMixin, TimestampMixin
 
 
 class MuscleGroup(enum.Enum):
-    """Supported muscle groups."""
+    """Enumerate supported primary muscle groups for cataloged exercises."""
 
     CHEST = "CHEST"
     BACK = "BACK"
@@ -25,13 +27,24 @@ class MuscleGroup(enum.Enum):
 
 
 class Exercise(PKMixin, TimestampMixin, ReprMixin, db.Model):
-    """Exercise catalog entity.
+    """Represent a catalog entry describing a physical exercise.
 
-    :ivar id: Primary key.
-    :ivar name: Unique exercise name.
-    :ivar muscle_group: Main muscle group (enum).
-    :ivar is_unilateral: Whether exercise is unilateral.
-    :ivar notes: Free-form notes.
+    Attributes
+    ----------
+    id: int
+        Surrogate primary key.
+    name: str
+        Unique exercise name indexed for quick lookups.
+    muscle_group: MuscleGroup
+        Dominant muscle group targeted by the movement.
+    is_unilateral: bool
+        Indicates whether the movement is performed one side at a time.
+    notes: str | None
+        Optional free-form instructions or cues.
+    routine_items: list[RoutineExercise]
+        Reverse relationship to routine prescriptions that use the exercise.
+    workout_items: list[WorkoutExercise]
+        Reverse relationship to performed workouts containing the exercise.
     """
 
     __tablename__ = "exercises"

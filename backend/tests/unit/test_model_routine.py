@@ -1,4 +1,4 @@
-"""Unit tests for `Routine` and `RoutineExercise` models."""
+"""Unit tests validating Routine and RoutineExercise persistence rules."""
 
 from __future__ import annotations
 
@@ -15,7 +15,12 @@ class TestRoutineModel:
 
     @pytest.mark.unit
     def test_create_basic_routine(self, session):
-        """Factory should create a valid routine with owner and timestamps."""
+        """Validate basic routine persistence.
+
+        Arrange with a factory routine linked to a user.
+        Act by flushing the session.
+        Assert ownership and timestamps populate.
+        """
         r = RoutineFactory()
         session.add(r)
         session.flush()
@@ -27,7 +32,12 @@ class TestRoutineModel:
 
     @pytest.mark.unit
     def test_name_required(self, session):
-        """`name` is NOT NULL."""
+        """Reject nameless routines.
+
+        Arrange a routine factory override without ``name``.
+        Act by flushing the session.
+        Assert the database raises an integrity error.
+        """
         u = UserFactory()
         session.add(u)
         session.flush()
@@ -38,7 +48,12 @@ class TestRoutineModel:
 
     @pytest.mark.unit
     def test_user_required(self, session):
-        """`user_id` is NOT NULL."""
+        """Enforce routine ownership.
+
+        Arrange a routine missing ``user_id``.
+        Act by flushing the session.
+        Assert integrity enforcement triggers.
+        """
         session.add(Routine(user_id=None, name="No owner"))
         with pytest.raises(IntegrityError):
             session.flush()
@@ -49,7 +64,12 @@ class TestRoutineExerciseModel:
 
     @pytest.mark.unit
     def test_create_basic_routine_exercise(self, session):
-        """Factory should create a valid routine exercise with defaults."""
+        """Validate routine exercise defaults.
+
+        Arrange with the factory and its linked routine and exercise.
+        Act by flushing the session.
+        Assert defaults, relationships, and timestamps populate.
+        """
         rx = RoutineExerciseFactory()
         session.add(rx)
         session.flush()
@@ -69,7 +89,12 @@ class TestRoutineExerciseModel:
 
     @pytest.mark.unit
     def test_order_unique_within_routine(self, session):
-        """(routine_id, order) must be unique within a routine."""
+        """Prevent duplicate routine exercise ordering.
+
+        Arrange two exercises sharing an order on one routine.
+        Act by flushing both to the database.
+        Assert the unique constraint raises an integrity error.
+        """
         r = RoutineFactory()
         e1 = ExerciseFactory(name="Bench Press")
         e2 = ExerciseFactory(name="Incline Bench")
@@ -86,7 +111,12 @@ class TestRoutineExerciseModel:
 
     @pytest.mark.unit
     def test_same_order_allowed_in_different_routines(self, session):
-        """Same `order` is allowed across different routines."""
+        """Allow shared orders across routines.
+
+        Arrange exercises in separate routines with the same order.
+        Act by flushing both to the session.
+        Assert the constraint allows the inserts.
+        """
         r1 = RoutineFactory(name="A")
         r2 = RoutineFactory(name="B")
         ex = ExerciseFactory(name="Row")
@@ -102,7 +132,12 @@ class TestRoutineExerciseModel:
 
     @pytest.mark.unit
     def test_relationship_ordering_by_order(self, session):
-        """Routine.exercises should be ordered by `order` as declared in relationship."""
+        """Ensure relationship ordering uses the column.
+
+        Arrange routine exercises inserted out of order.
+        Act by loading ``routine.exercises``.
+        Assert the sequence follows the ``order`` column.
+        """
         r = RoutineFactory()
         e1 = ExerciseFactory(name="Lat Pulldown")
         e2 = ExerciseFactory(name="Seated Row")
@@ -124,7 +159,12 @@ class TestRoutineExerciseModel:
 
     @pytest.mark.unit
     def test_delete_routine_cascades_children_via_orphan(self, session):
-        """Deleting Routine should remove its RoutineExercise via ORM delete-orphan."""
+        """Cascade routine deletions to children.
+
+        Arrange a routine with a dependent routine exercise.
+        Act by deleting the parent routine.
+        Assert delete-orphan cascading removes the child row.
+        """
         rx = RoutineExerciseFactory()
         session.add(rx)
         session.flush()

@@ -1,4 +1,4 @@
-"""Factories for Workout, WorkoutExercise, and WorkoutSet models."""
+"""Factory Boy definitions for workout tracking models."""
 
 from __future__ import annotations
 
@@ -13,22 +13,21 @@ from tests.factories.user import UserFactory
 
 
 class WorkoutFactory(BaseFactory):
-    """Factory for the `Workout` model."""
+    """Build persisted :class:`app.models.workout.Workout` instances."""
 
     class Meta:
         model = Workout
 
     id = None
     user = factory.SubFactory(UserFactory)  # sets user_id
-    # routine is optional; si quieres cubrirlo en casos concretos:
-    # routine = factory.SubFactory(RoutineFactory)
-    # date -> dejamos que lo ponga el default del modelo (date.today)
+    # Routine is optional; override in tests that need an explicit association.
+    # date -> allow the model default (date.today) to populate the field.
     duration_min = None
     notes = factory.Faker("sentence", nb_words=8)
 
 
 class WorkoutExerciseFactory(BaseFactory):
-    """Factory for the `WorkoutExercise` model."""
+    """Build :class:`app.models.workout.WorkoutExercise` instances."""
 
     class Meta:
         model = WorkoutExercise
@@ -41,7 +40,7 @@ class WorkoutExerciseFactory(BaseFactory):
 
 
 class WorkoutSetFactory(BaseFactory):
-    """Factory for the `WorkoutSet` model."""
+    """Build :class:`app.models.workout.WorkoutSet` instances."""
 
     class Meta:
         model = WorkoutSet

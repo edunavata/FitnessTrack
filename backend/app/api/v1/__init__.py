@@ -1,4 +1,4 @@
-"""API v1 blueprint package."""
+"""API v1 blueprint package bundling authentication and health routes."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""API blueprint package."""
+"""API blueprint package aggregating versioned endpoints."""
 
 from __future__ import annotations
 
@@ -13,12 +13,23 @@ def register_blueprint_group(
     base_prefix: str,
     entries: Iterable[tuple[Blueprint, str]],
 ) -> None:
-    """
-    Register a group of blueprints under a common base prefix.
+    """Register related blueprints beneath a common prefix.
 
-    :param app: Flask application.
-    :param base_prefix: Base prefix (e.g. '/api/v1').
-    :param entries: Iterable of (blueprint, relative_prefix).
+    Parameters
+    ----------
+    app: flask.Flask
+        Application instance receiving the blueprints.
+    base_prefix: str
+        Prefix applied to all entries, typically the API version segment such
+        as ``"/api/v1"``.
+    entries: Iterable[tuple[flask.Blueprint, str]]
+        Iterable of ``(blueprint, relative_prefix)`` pairs where
+        ``relative_prefix`` is appended to ``base_prefix``.
+
+    Notes
+    -----
+    Empty relative prefixes are supported, allowing a blueprint to mount at the
+    version root while others extend it with additional path segments.
     """
     for bp, rel_prefix in entries:
         # Normalize slashes safely
@@ -30,8 +41,17 @@ def register_blueprint_group(
 
 
 def init_app(app: Flask) -> None:
-    """
-    Register all API versions.
+    """Register the available API versions on the Flask app.
+
+    Parameters
+    ----------
+    app: flask.Flask
+        Application instance to wire with blueprints.
+
+    Notes
+    -----
+    The base prefix defaults to ``"/api"`` but can be overridden via the
+    ``API_BASE_PREFIX`` configuration key.
     """
     api_base = app.config.get("API_BASE_PREFIX", "/api")
 

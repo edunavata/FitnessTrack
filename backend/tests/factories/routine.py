@@ -1,4 +1,4 @@
-"""Factories for Routine and RoutineExercise models."""
+"""Factory Boy definitions for routine templates and exercises."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from tests.factories.user import UserFactory
 
 
 class RoutineFactory(BaseFactory):
-    """Factory for the `Routine` model."""
+    """Build persisted :class:`app.models.routine.Routine` instances."""
 
     class Meta:
         model = Routine
@@ -23,7 +23,7 @@ class RoutineFactory(BaseFactory):
 
 
 class RoutineExerciseFactory(BaseFactory):
-    """Factory for the `RoutineExercise` model."""
+    """Build :class:`app.models.routine.RoutineExercise` prescriptions."""
 
     class Meta:
         model = RoutineExercise
@@ -32,10 +32,10 @@ class RoutineExerciseFactory(BaseFactory):
     routine = factory.SubFactory(RoutineFactory)  # sets routine_id automatically
     exercise = factory.SubFactory(ExerciseFactory)  # sets exercise_id automatically
 
-    # display order within routine (1-based)
+    # Display order within the routine (1-based)
     order = factory.Sequence(lambda n: n + 1)
 
-    # defaults aligned with model
+    # Defaults aligned with model constraints
     target_sets = 3
     target_reps = 10
     target_rpe = None

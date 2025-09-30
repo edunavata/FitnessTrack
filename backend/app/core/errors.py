@@ -12,18 +12,31 @@ from werkzeug.exceptions import HTTPException
 
 
 class APIError(Exception):
-    """Base API error for domain/business errors.
+    """Represent a JSON-serializable API error.
 
     Parameters
     ----------
-    message:
-        Human-readable error message.
-    status_code:
-        HTTP status code.
-    code:
-        Machine-readable error code (snake_case).
-    details:
-        Optional structured details for validation scenarios.
+    message: str
+        Human-readable description presented to clients.
+    status_code: int, optional
+        HTTP status code to return. Defaults to ``400``.
+    code: str, optional
+        Machine-readable identifier, typically snake_case. Defaults to
+        ``"bad_request"``.
+    details: dict[str, Any] | None, optional
+        Optional structured payload (e.g., validation messages) included in the
+        response body.
+
+    Attributes
+    ----------
+    message: str
+        Error summary stored for serialization.
+    status_code: int
+        HTTP status code returned to the client.
+    code: str
+        Stable machine-readable identifier.
+    details: dict[str, Any]
+        Arbitrary context specific to the error instance.
     """
 
     def __init__(
@@ -40,7 +53,7 @@ class APIError(Exception):
         self.details = details or {}
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialize error to a standard dict."""
+        """Serialize error metadata into a response-friendly dictionary."""
         data: dict[str, Any] = {
             "code": self.code,
             "message": self.message,
@@ -52,27 +65,35 @@ class APIError(Exception):
 
 # Convenience domain errors (extend as needed)
 class NotFound(APIError):
+    """Specialization for 404 responses when resources are missing."""
+
     def __init__(self, message: str = "Resource not found") -> None:
         super().__init__(message, status_code=404, code="not_found")
 
 
 class Conflict(APIError):
+    """Conflict error raised when unique constraints are violated."""
+
     def __init__(self, message: str = "Conflict") -> None:
         super().__init__(message, status_code=409, code="conflict")
 
 
 class Unauthorized(APIError):
+    """Unauthorized error used when authentication fails."""
+
     def __init__(self, message: str = "Unauthorized") -> None:
         super().__init__(message, status_code=401, code="unauthorized")
 
 
 class Forbidden(APIError):
+    """Forbidden error used when authorization checks deny access."""
+
     def __init__(self, message: str = "Forbidden") -> None:
         super().__init__(message, status_code=403, code="forbidden")
 
 
 def _http_status_to_code(status_code: int) -> str:
-    """Map common HTTP status codes to error code strings."""
+    """Map common HTTP status codes to canonical error codes."""
     mapping = {
         400: "bad_request",
         401: "unauthorized",
@@ -92,10 +113,18 @@ def _http_status_to_code(status_code: int) -> str:
 def init_app(app: Flask) -> None:
     """Attach JSON error handlers to the Flask app.
 
+    Parameters
+    ----------
+    app: flask.Flask
+        Application receiving error handlers.
+
     Notes
     -----
-    - Ensures *all* errors are returned as JSON (no HTML error pages).
-    - Adds a correlation `id` for 5xx errors in responses & logs.
+    - Ensures all errors, including uncaught exceptions, produce JSON
+      responses.
+    - Generates a correlation ``id`` for unexpected errors to ease debugging.
+    - The unexpected error handler emits full stack traces to the application
+      logger at ``ERROR`` level.
     """
 
     @app.errorhandler(APIError)

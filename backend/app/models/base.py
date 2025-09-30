@@ -1,3 +1,5 @@
+"""Reusable SQLAlchemy mixins shared by domain models."""
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -6,10 +8,14 @@ from app.core.extensions import db
 
 
 class TimestampMixin:
-    """Common timestamps mixin.
+    """Provide ``created_at`` and ``updated_at`` timestamp columns.
 
-    :ivar created_at: Creation datetime in UTC.
-    :ivar updated_at: Last update datetime in UTC.
+    Attributes
+    ----------
+    created_at: sqlalchemy.sql.schema.Column
+        UTC timestamp filled on insert.
+    updated_at: sqlalchemy.sql.schema.Column
+        UTC timestamp refreshed on updates via SQLAlchemy ``onupdate``.
     """
 
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
@@ -19,16 +25,19 @@ class TimestampMixin:
 
 
 class PKMixin:
-    """Primary key mixin.
+    """Expose an integer surrogate primary key column named ``id``.
 
-    :ivar id: Surrogate integer primary key.
+    Attributes
+    ----------
+    id: sqlalchemy.sql.schema.Column
+        Auto-incrementing integer primary key managed by the database.
     """
 
     id = db.Column(db.Integer, primary_key=True)
 
 
 class ReprMixin:
-    """Human-friendly __repr__ mixin."""
+    """Provide a concise ``__repr__`` including the class name and id."""
 
     def __repr__(self) -> str:
         # Short and useful representation for debugging

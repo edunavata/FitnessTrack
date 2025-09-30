@@ -1,4 +1,4 @@
-"""Unit tests for the `User` model."""
+"""Unit tests ensuring User model hashing, uniqueness, and timestamps."""
 
 from __future__ import annotations
 
@@ -13,7 +13,12 @@ class TestUserModel:
 
     @pytest.mark.unit
     def test_password_is_hashed_and_write_only(self, session):
-        """Password setter should hash and disallow reading."""
+        """Ensure passwords hash and stay write only.
+
+        Arrange a user with a known raw password.
+        Act by flushing the instance.
+        Assert the hash differs and direct reads raise.
+        """
         u = UserFactory(email="alice@example.com", password="S3cret!!!")
         session.add(u)
         session.flush()
@@ -25,7 +30,12 @@ class TestUserModel:
 
     @pytest.mark.unit
     def test_verify_password(self, session):
-        """verify_password should return True for correct password."""
+        """Check password verification paths.
+
+        Arrange a user with a known password.
+        Act by calling ``verify_password`` with correct and incorrect inputs.
+        Assert success only for the matching password.
+        """
         u = UserFactory(email="bob@example.com", password="Correct#1")
         session.add(u)
         session.flush()
@@ -35,7 +45,7 @@ class TestUserModel:
 
     @pytest.mark.unit
     def test_email_unique(self, session):
-        """Unique constraint on email should be enforced."""
+        """Arrange two users sharing an email, flush the second, and expect an integrity error."""
         _ = UserFactory(email="dup@example.com")
         session.flush()
 
@@ -46,7 +56,12 @@ class TestUserModel:
 
     @pytest.mark.unit
     def test_timestamps_present(self, session):
-        """created_at/updated_at should be filled by mixin defaults."""
+        """Populate timestamp columns via the mixin.
+
+        Arrange a user from the factory.
+        Act by flushing the session.
+        Assert created and updated timestamps are present.
+        """
         u = UserFactory()
         session.add(u)
         session.flush()

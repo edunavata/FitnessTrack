@@ -1,4 +1,4 @@
-"""Factories for Exercise-related models."""
+"""Factory Boy definitions for exercise-related models."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from tests.factories import BaseFactory
 
 
 class ExerciseFactory(BaseFactory):
-    """Factory for the `Exercise` model."""
+    """Build persisted :class:`app.models.exercise.Exercise` instances."""
 
     class Meta:
         model = Exercise
