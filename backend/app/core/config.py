@@ -3,8 +3,14 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Mapping
+from typing import Final
 
 from dotenv import load_dotenv
+
+# Public selector env var (keep neutral name to avoid collisions)
+ENV_VAR: Final[str] = "APP_ENV"  # 'development' | 'testing' | 'production'
+
 
 # Carga .env en desarrollo (no hace nada si no existe)
 load_dotenv()
@@ -71,17 +77,19 @@ class ProductionConfig(BaseConfig):
     PROPAGATE_EXCEPTIONS = False
 
 
-def get_config() -> type[BaseConfig]:
-    """Return the config class selected by environment variables.
+# Map names -> classes (simple, explicit)
+CONFIG_MAP: Mapping[str, type[BaseConfig]] = {
+    "development": DevelopmentConfig,
+    "testing": TestingConfig,
+    "production": ProductionConfig,
+}
 
-    Priority:
-      1) APP_ENV (production|development|testing)
-      2) FLASK_ENV (legacy)
-      3) default: DevelopmentConfig
+
+def get_config() -> type[BaseConfig]:
+    """Return the selected config class based on ``APP_ENV``.
+
+    :returns: Configuration class to pass to ``app.config.from_object``.
+    :rtype: Type[BaseConfig]
     """
-    env = (os.getenv("APP_ENV") or os.getenv("FLASK_ENV") or "development").lower()
-    if env in {"prod", "production"}:
-        return ProductionConfig
-    if env in {"test", "testing"}:
-        return TestingConfig
-    return DevelopmentConfig
+    name = os.getenv(ENV_VAR, "development").strip().lower()
+    return CONFIG_MAP.get(name, DevelopmentConfig)

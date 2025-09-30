@@ -8,7 +8,7 @@ from flask_migrate import Migrate
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from app.api import register_blueprint_group
-from app.core.config import get_config
+from app.core.config import BaseConfig, get_config
 from app.core.database import db
 from app.core.errors import register_error_handlers
 from app.core.logger import configure_logging
@@ -18,21 +18,49 @@ migrate = Migrate()
 jwt = JWTManager()
 
 
-def create_app() -> Flask:
+def create_app(
+    config: str | type[BaseConfig] | object | None = None,
+    *,
+    instance_relative_config: bool = True,
+    instance_config_filename: str = "config.py",
+) -> Flask:
+    """Create and configure the Flask application.
+
+    Parameters
+    ----------
+    config:
+        - ``None``: load class from :func:`get_config` using ``APP_ENV``.
+        - ``str``: dotted path to a config object/class (``'package:object'``).
+        - ``Type[BaseConfig]`` or any object: passed to ``from_object``.
+    instance_relative_config:
+        Whether to enable the instance folder (recommended for secrets).
+    instance_config_filename:
+        Optional per-host overrides inside ``instance/``.
+
+    Returns
+    -------
+    Flask
+        Configured Flask application instance.
     """
-    Create and configure the Flask application.
+    # 1) Instantiate app early and load base config
+    app = Flask(__name__, instance_relative_config=instance_relative_config)
 
-    :returns: Configured Flask application.
-    :rtype: Flask
-    """
-    # Load config and configure logging as early as possible
-    Config = get_config()
-    configure_logging(Config.LOG_LEVEL)
+    # 2) Load config object
+    if config is None:
+        app.config.from_object(get_config())
+    elif isinstance(config, str):  # Dotted path
+        app.config.from_object(config)
+    else:
+        app.config.from_object(config)
 
-    app = Flask(__name__, instance_relative_config=True)
-    app.config.from_object(Config)
+    # 3) Optional instance overrides (safe for secrets per host)
+    if instance_relative_config and instance_config_filename:
+        app.config.from_pyfile(instance_config_filename, silent=True)
 
-    _configure_proxies(app)
+    # 4) Configure logging ASAP according to config
+    configure_logging(app.config.get("LOG_LEVEL", "INFO"))
+
+    # 5) Init extensions, blueprints, CORS, error handlers, CLI, etc.
     _init_extensions(app)
     _configure_cors(app)
     _register_blueprints(app)
