@@ -44,7 +44,12 @@ class TestExerciseModel:
 
     @pytest.mark.unit
     def test_is_unilateral_default_false(self, session):
-        """Arrange an exercise without overriding ``is_unilateral``, flush, and confirm it defaults to ``False``."""
+        """Confirm default unilateral flag persists.
+
+        Arrange with a factory exercise using the default field.
+        Act by flushing the session.
+        Assert the stored value resolves to ``False``.
+        """
         e = ExerciseFactory(is_unilateral=None)  # factory override
         session.add(e)
         session.flush()

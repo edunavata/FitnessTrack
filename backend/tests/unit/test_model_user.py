@@ -13,7 +13,12 @@ class TestUserModel:
 
     @pytest.mark.unit
     def test_password_is_hashed_and_write_only(self, session):
-        """Arrange a user with a known password, flush, then assert hashing and access protections hold."""
+        """Ensure passwords hash and stay write only.
+
+        Arrange a user with a known raw password.
+        Act by flushing the instance.
+        Assert the hash differs and direct reads raise.
+        """
         u = UserFactory(email="alice@example.com", password="S3cret!!!")
         session.add(u)
         session.flush()
@@ -25,7 +30,12 @@ class TestUserModel:
 
     @pytest.mark.unit
     def test_verify_password(self, session):
-        """Arrange a user with a password, invoke ``verify_password``, and assert correct and incorrect inputs behave as expected."""
+        """Check password verification paths.
+
+        Arrange a user with a known password.
+        Act by calling ``verify_password`` with correct and incorrect inputs.
+        Assert success only for the matching password.
+        """
         u = UserFactory(email="bob@example.com", password="Correct#1")
         session.add(u)
         session.flush()
@@ -46,7 +56,12 @@ class TestUserModel:
 
     @pytest.mark.unit
     def test_timestamps_present(self, session):
-        """Arrange a user, flush it, and assert timestamp columns populate via the mixin defaults."""
+        """Populate timestamp columns via the mixin.
+
+        Arrange a user from the factory.
+        Act by flushing the session.
+        Assert created and updated timestamps are present.
+        """
         u = UserFactory()
         session.add(u)
         session.flush()
