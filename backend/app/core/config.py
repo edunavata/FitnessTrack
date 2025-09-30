@@ -21,6 +21,8 @@ def env_bool(name: str, default: bool = False) -> bool:
 class BaseConfig:
     """Base configuration shared across environments."""
 
+    API_BASE_PREFIX = "/api"
+
     # Secretos / seguridad
     SECRET_KEY = os.getenv("SECRET_KEY", "CHANGE_ME")
     JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "CHANGE_ME_JWT")
@@ -47,8 +49,8 @@ class DevelopmentConfig(BaseConfig):
     """Development-friendly config."""
 
     DEBUG = env_bool("FLASK_DEBUG", True)
-    # Puedes activar echo desde env si lo necesitas
     SQLALCHEMY_ECHO = env_bool("SQLALCHEMY_ECHO", False)
+    CORS_MAX_AGE = 600  # 10 minutes
 
 
 class TestingConfig(BaseConfig):
