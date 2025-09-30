@@ -89,7 +89,7 @@ def _http_status_to_code(status_code: int) -> str:
     return mapping.get(status_code, "error")
 
 
-def register_error_handlers(app: Flask) -> None:
+def init_app(app: Flask) -> None:
     """Attach JSON error handlers to the Flask app.
 
     Notes

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from app.core.database import db
+from app.core.extensions import db
 
 
 class TimestampMixin:

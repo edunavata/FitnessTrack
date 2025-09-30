@@ -27,3 +27,20 @@ def register_blueprint_group(
         )
         full_prefix = "/" + full_prefix if not full_prefix.startswith("/") else full_prefix
         app.register_blueprint(bp, url_prefix=full_prefix)
+
+
+def init_app(app: Flask) -> None:
+    """
+    Register all API versions.
+    """
+    api_base = app.config.get("API_BASE_PREFIX", "/api")
+
+    # v1
+    from app.api.v1 import API_VERSION as V1
+    from app.api.v1 import REGISTRY as V1_REGISTRY
+
+    register_blueprint_group(app, base_prefix=f"{api_base}/{V1}", entries=V1_REGISTRY)
+
+    # Future:
+    # from app.api.v2 import API_VERSION as V2, REGISTRY as V2_REGISTRY
+    # register_blueprint_group(app, base_prefix=f"{api_base}/{V2}", entries=V2_REGISTRY)

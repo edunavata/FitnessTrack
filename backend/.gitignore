@@ -4,3 +4,10 @@ __pycache__/
 .venv/
 .env
 instance/
+
+# coverage / pytest
+.coverage
+coverage.xml
+htmlcov/
+.pytest_cache/
+__pycache__/

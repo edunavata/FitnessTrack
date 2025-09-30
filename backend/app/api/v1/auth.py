@@ -9,8 +9,8 @@ from flask_jwt_extended import (
     jwt_required,
 )
 
-from app.core.database import db
 from app.core.errors import Conflict, Unauthorized
+from app.core.extensions import db
 from app.models.user import User
 from app.schemas import LoginSchema, RegisterSchema, load_data
 

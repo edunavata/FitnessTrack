@@ -6,7 +6,9 @@ from typing import cast
 
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from .base import PKMixin, ReprMixin, TimestampMixin, db
+from app.core.extensions import db
+
+from .base import PKMixin, ReprMixin, TimestampMixin
 
 
 class User(PKMixin, TimestampMixin, ReprMixin, db.Model):

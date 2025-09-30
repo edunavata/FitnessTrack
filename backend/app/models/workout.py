@@ -4,7 +4,9 @@ from datetime import date
 
 from sqlalchemy import UniqueConstraint
 
-from .base import PKMixin, ReprMixin, TimestampMixin, db
+from app.core.extensions import db
+
+from .base import PKMixin, ReprMixin, TimestampMixin
 
 
 class Workout(PKMixin, TimestampMixin, ReprMixin, db.Model):

@@ -12,7 +12,7 @@ from __future__ import annotations
 import os
 
 import pytest
-from app.core.database import db as _db  # instancia de Flask-SQLAlchemy
+from app.core.extensions import db as _db  # instancia de Flask-SQLAlchemy
 from app.factory import create_app  # tu app factory
 from sqlalchemy import event
 from sqlalchemy.orm import scoped_session, sessionmaker

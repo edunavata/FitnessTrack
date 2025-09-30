@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import enum
 
-from .base import PKMixin, ReprMixin, TimestampMixin, db
+from app.core.extensions import db
+
+from .base import PKMixin, ReprMixin, TimestampMixin
 
 
 class MuscleGroup(enum.Enum):
