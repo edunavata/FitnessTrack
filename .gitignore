@@ -19,3 +19,10 @@ dist/
 
 .mypy_cache/
 .ruff_cache/
+
+# coverage / pytest
+.coverage
+coverage.xml
+htmlcov/
+.pytest_cache/
+__pycache__/

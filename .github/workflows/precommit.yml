@@ -15,7 +15,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11" # usa misma versión que local
+          python-version: "3.11"
 
       - name: Cache pip
         uses: actions/cache@v4
@@ -37,5 +37,8 @@ jobs:
 
       - name: Run tests
         working-directory: backend
+        env:
+          # Si usas SQLite por defecto:
+          DATABASE_URL: "sqlite:///./dev.db"
         run: |
           pytest --cov=app --cov-report=xml
