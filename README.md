@@ -136,6 +136,11 @@ FitnessTrack includes comprehensive automated coverage:
 - **Integration tests:** Assert behavior across API routes, database interactions, and middleware.
 - **End-to-end tests:** Exercise complete user workflows across the stack.
 
+Install testing dependencies:
+```bash
+pip install -r backend/requirements-dev.txt
+```
+
 Run the entire suite with:
 
 ```bash
