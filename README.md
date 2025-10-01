@@ -61,7 +61,7 @@ A full-stack fitness workout tracking application built to consolidate the skill
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/<your-username>/FitnessTrack.git
+   git clone https://github.com/edunavata/FitnessTrack.git
    cd FitnessTrack
    ```
 2. **Create and activate a virtual environment** (Python 3.11+ recommended)
