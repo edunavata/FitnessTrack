@@ -1,8 +1,13 @@
-"""Factory Boy definitions for routine templates and exercises."""
+"""Factory Boy definitions for routine planning models."""
 
 from __future__ import annotations
 
-from app.models.routine import Routine, RoutineExercise
+from app.models.routine import (
+    Routine,
+    RoutineDay,
+    RoutineDayExercise,
+    RoutineExerciseSet,
+)
 
 import factory
 from tests.factories import BaseFactory
@@ -11,32 +16,44 @@ from tests.factories.user import UserFactory
 
 
 class RoutineFactory(BaseFactory):
-    """Build persisted :class:`app.models.routine.Routine` instances."""
-
     class Meta:
         model = Routine
 
     id = None
-    user = factory.SubFactory(UserFactory)  # sets user_id automatically
+    user = factory.SubFactory(UserFactory)
     name = factory.Sequence(lambda n: f"Routine {n}")
-    notes = factory.Faker("sentence", nb_words=8)
+    description = "Basic routine"
+    is_active = True
 
 
-class RoutineExerciseFactory(BaseFactory):
-    """Build :class:`app.models.routine.RoutineExercise` prescriptions."""
-
+class RoutineDayFactory(BaseFactory):
     class Meta:
-        model = RoutineExercise
+        model = RoutineDay
 
     id = None
-    routine = factory.SubFactory(RoutineFactory)  # sets routine_id automatically
-    exercise = factory.SubFactory(ExerciseFactory)  # sets exercise_id automatically
+    routine = factory.SubFactory(RoutineFactory)
+    day_index = factory.Sequence(lambda n: n + 1)
+    is_rest = False
+    title = factory.LazyAttribute(lambda o: f"Day {o.day_index}")
 
-    # Display order within the routine (1-based)
-    order = factory.Sequence(lambda n: n + 1)
 
-    # Defaults aligned with model constraints
-    target_sets = 3
+class RoutineDayExerciseFactory(BaseFactory):
+    class Meta:
+        model = RoutineDayExercise
+
+    id = None
+    routine_day = factory.SubFactory(RoutineDayFactory)
+    exercise = factory.SubFactory(ExerciseFactory)
+    position = factory.Sequence(lambda n: n + 1)
+
+
+class RoutineExerciseSetFactory(BaseFactory):
+    class Meta:
+        model = RoutineExerciseSet
+
+    id = None
+    routine_day_exercise = factory.SubFactory(RoutineDayExerciseFactory)
+    set_index = factory.Sequence(lambda n: n + 1)
+    is_warmup = False
+    to_failure = False
     target_reps = 10
-    target_rpe = None
-    rest_sec = 120

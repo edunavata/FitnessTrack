@@ -1,69 +1,67 @@
-"""Unit tests ensuring User model hashing, uniqueness, and timestamps."""
+"""Tests for the User model."""
 
 from __future__ import annotations
 
 import pytest
 from app.models.user import User
 from sqlalchemy.exc import IntegrityError
-from tests.factories.user import UserFactory
 
 
-class TestUserModel:
-    """Tests for User domain logic."""
-
-    @pytest.mark.unit
-    def test_password_is_hashed_and_write_only(self, session):
-        """Ensure passwords hash and stay write only.
-
-        Arrange a user with a known raw password.
-        Act by flushing the instance.
-        Assert the hash differs and direct reads raise.
-        """
-        u = UserFactory(email="alice@example.com", password="S3cret!!!")
+class TestUser:
+    def test_password_hashing(self, session):
+        u = User(email="Test@Example.com", username="tester")
+        u.password = "secret123"
         session.add(u)
-        session.flush()
+        session.commit()
+        assert u.verify_password("secret123") is True
+        assert u.verify_password("wrong") is False
 
-        assert u.password_hash and u.password_hash != "S3cret!!!"
-
+    def test_password_is_write_only(self):
+        u = User(email="a@example.com", username="u1")
+        u.password = "x"
         with pytest.raises(AttributeError):
             _ = u.password
 
-    @pytest.mark.unit
-    def test_verify_password(self, session):
-        """Check password verification paths.
+    def test_email_normalized_and_unique(self, session):
+        u1 = User(email="Alice@Example.com", username="alice")
+        u1.password = "pw"
+        session.add(u1)
+        session.commit()
+        assert u1.email == "alice@example.com"
 
-        Arrange a user with a known password.
-        Act by calling ``verify_password`` with correct and incorrect inputs.
-        Assert success only for the matching password.
-        """
-        u = UserFactory(email="bob@example.com", password="Correct#1")
-        session.add(u)
-        session.flush()
-
-        assert u.verify_password("Correct#1") is True
-        assert u.verify_password("wrong") is False
-
-    @pytest.mark.unit
-    def test_email_unique(self, session):
-        """Arrange two users sharing an email, flush the second, and expect an integrity error."""
-        _ = UserFactory(email="dup@example.com")
-        session.flush()
-
-        # Create a second instance with the same email (must include name)
-        session.add(User(email="dup@example.com", name="Dup", password_hash="x"))
+        u2 = User(email="alice@example.com", username="alice2")
+        u2.password = "pw"
+        session.add(u2)
         with pytest.raises(IntegrityError):
-            session.flush()
+            session.commit()
 
-    @pytest.mark.unit
-    def test_timestamps_present(self, session):
-        """Populate timestamp columns via the mixin.
+    def test_username_unique(self, session):
+        u1 = User(email="b1@example.com", username="bob")
+        u1.password = "pw"
+        session.add(u1)
+        session.commit()
 
-        Arrange a user from the factory.
-        Act by flushing the session.
-        Assert created and updated timestamps are present.
-        """
-        u = UserFactory()
+        u2 = User(email="b2@example.com", username="bob")
+        u2.password = "pw"
+        session.add(u2)
+        with pytest.raises(IntegrityError):
+            session.commit()
+
+    def test_age_and_height_validation(self, session):
+        u = User(email="c@example.com", username="charlie")
+        u.password = "pw"
+        u.age = 25
+        u.height_cm = 180
+        u.weight_kg = 80.5
         session.add(u)
-        session.flush()
-        assert u.created_at is not None
-        assert u.updated_at is not None
+        session.commit()
+        assert u.age == 25
+        assert u.height_cm == 180
+        assert float(u.weight_kg) == 80.5
+
+        with pytest.raises(ValueError):
+            u.age = -1
+        with pytest.raises(ValueError):
+            u.height_cm = 0
+        with pytest.raises(ValueError):
+            u.weight_kg = -10

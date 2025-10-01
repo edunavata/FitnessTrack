@@ -1,98 +1,140 @@
-"""Workout routine template models."""
+"""Routine planning models (mesocycles, days, exercises, sets)."""
 
 from __future__ import annotations
 
-from sqlalchemy import UniqueConstraint
+from typing import TYPE_CHECKING, Any
+
+from sqlalchemy import (
+    Boolean,
+    Date,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+)
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.extensions import db
 
 from .base import PKMixin, ReprMixin, TimestampMixin
 
+if TYPE_CHECKING:
+    from .exercise import Exercise
+    from .user import User
+
 
 class Routine(PKMixin, TimestampMixin, ReprMixin, db.Model):
-    """Represent a reusable template of exercises planned by a user.
-
-    Attributes
-    ----------
-    id: int
-        Surrogate primary key.
-    user_id: int
-        Foreign key referencing the owning :class:`app.models.user.User`.
-    name: str
-        Display name of the routine.
-    notes: str | None
-        Optional notes describing the intent of the routine.
-    user: app.models.user.User
-        ORM relationship back to the owning user.
-    exercises: list[RoutineExercise]
-        Ordered collection of prescribed exercises including set/rep targets.
-    """
+    """Mesocycle template owned by a user."""
 
     __tablename__ = "routines"
 
-    user_id = db.Column(
-        db.Integer,
-        db.ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    starts_on: Mapped[Any | None] = mapped_column(Date)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
+
+    __table_args__ = (
+        Index("ix_routines_user_active", "user_id", "is_active"),
+        UniqueConstraint("user_id", "name", name="uq_routines_user_name"),
     )
-    name = db.Column(db.String(120), nullable=False)
-    notes = db.Column(db.Text)
 
     # Relationships
-    user = db.relationship("User", back_populates="routines")
-    exercises = db.relationship(
-        "RoutineExercise",
+    user: Mapped[User] = relationship("User", back_populates="routines")
+    days: Mapped[list[RoutineDay]] = relationship(
+        "RoutineDay",
         back_populates="routine",
         cascade="all, delete-orphan",
-        order_by="RoutineExercise.order",
+        passive_deletes=True,
     )
 
 
-class RoutineExercise(PKMixin, TimestampMixin, ReprMixin, db.Model):
-    """Describe how an exercise should be performed within a routine.
+class RoutineDay(PKMixin, TimestampMixin, ReprMixin, db.Model):
+    """Day slots within a routine cycle."""
 
-    Attributes
-    ----------
-    id: int
-        Surrogate primary key.
-    routine_id: int
-        Foreign key referencing the owning :class:`Routine`.
-    exercise_id: int
-        Foreign key pointing to the catalog :class:`app.models.exercise.Exercise`.
-    order: int
-        One-based display order enforced per routine via unique constraint.
-    target_sets: int
-        Suggested number of sets per session.
-    target_reps: int
-        Suggested number of repetitions per set.
-    target_rpe: float | None
-        Optional target rate of perceived exertion.
-    rest_sec: int
-        Planned rest duration between sets in seconds.
-    routine: Routine
-        Relationship back to the routine template.
-    exercise: app.models.exercise.Exercise
-        Relationship to the exercise catalog entry.
-    """
+    __tablename__ = "routine_days"
 
-    __tablename__ = "routine_exercises"
-    __table_args__ = (UniqueConstraint("routine_id", "order", name="uq_routine_order"),)
-
-    routine_id = db.Column(
-        db.Integer,
-        db.ForeignKey("routines.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
+    routine_id: Mapped[int] = mapped_column(
+        ForeignKey("routines.id", ondelete="CASCADE"), nullable=False
     )
-    exercise_id = db.Column(db.Integer, db.ForeignKey("exercises.id"), nullable=False, index=True)
+    day_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    is_rest: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    title: Mapped[str | None] = mapped_column(String(100))
+    notes: Mapped[str | None] = mapped_column(Text)
 
-    order = db.Column(db.Integer, nullable=False)
-    target_sets = db.Column(db.Integer, nullable=False, default=3)
-    target_reps = db.Column(db.Integer, nullable=False, default=10)
-    target_rpe = db.Column(db.Float)  # e.g., 7.5
-    rest_sec = db.Column(db.Integer, nullable=False, default=120)
+    __table_args__ = (
+        UniqueConstraint("routine_id", "day_index", name="uq_routine_days_routine_day_index"),
+    )
 
     # Relationships
-    routine = db.relationship("Routine", back_populates="exercises")
-    exercise = db.relationship("Exercise", back_populates="routine_items")
+    routine: Mapped[Routine] = relationship("Routine", back_populates="days")
+    exercises: Mapped[list[RoutineDayExercise]] = relationship(
+        "RoutineDayExercise",
+        back_populates="routine_day",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+
+class RoutineDayExercise(PKMixin, TimestampMixin, ReprMixin, db.Model):
+    """Ordered exercises for a routine day."""
+
+    __tablename__ = "routine_day_exercises"
+
+    routine_day_id: Mapped[int] = mapped_column(
+        ForeignKey("routine_days.id", ondelete="CASCADE"), nullable=False
+    )
+    exercise_id: Mapped[int] = mapped_column(
+        ForeignKey("exercises.id", ondelete="CASCADE"), nullable=False
+    )
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+    notes: Mapped[str | None] = mapped_column(Text)
+
+    __table_args__ = (
+        UniqueConstraint("routine_day_id", "position", name="uq_rde_day_pos"),
+        Index("ix_rde_day_exercise", "routine_day_id", "exercise_id"),
+    )
+
+    # Relationships
+    routine_day: Mapped[RoutineDay] = relationship("RoutineDay", back_populates="exercises")
+    exercise: Mapped[Exercise] = relationship("Exercise")
+    sets: Mapped[list[RoutineExerciseSet]] = relationship(
+        "RoutineExerciseSet",
+        back_populates="routine_day_exercise",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+
+class RoutineExerciseSet(PKMixin, TimestampMixin, ReprMixin, db.Model):
+    """Planned sets per routine-day-exercise."""
+
+    __tablename__ = "routine_exercise_sets"
+
+    routine_day_exercise_id: Mapped[int] = mapped_column(
+        ForeignKey("routine_day_exercises.id", ondelete="CASCADE"), nullable=False
+    )
+    set_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    is_warmup: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    to_failure: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+
+    target_weight_kg: Mapped[float | None] = mapped_column(Numeric(6, 2))
+    target_reps: Mapped[int | None] = mapped_column(Integer)
+    target_rir: Mapped[int | None] = mapped_column(Integer)
+    target_rpe: Mapped[float | None] = mapped_column(Numeric(3, 1))
+    target_tempo: Mapped[str | None] = mapped_column(String(15))
+    target_rest_s: Mapped[int | None] = mapped_column(Integer)
+
+    notes: Mapped[str | None] = mapped_column(Text)
+
+    __table_args__ = (
+        UniqueConstraint("routine_day_exercise_id", "set_index", name="uq_res_rde_set_idx"),
+    )
+
+    # Relationships
+    routine_day_exercise: Mapped[RoutineDayExercise] = relationship(
+        "RoutineDayExercise", back_populates="sets"
+    )

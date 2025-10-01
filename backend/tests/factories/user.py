@@ -1,4 +1,4 @@
-"""Factory Boy definitions for user entities used across tests."""
+"""Factory Boy definition for :class:`app.models.user.User`."""
 
 from __future__ import annotations
 
@@ -16,24 +16,15 @@ class UserFactory(BaseFactory):
 
     id = None  # let autoincrement handle it
     email = factory.Sequence(lambda n: f"user{n}@example.com")
-    name = factory.LazyAttribute(lambda o: o.email.split("@")[0].capitalize())
-    password_hash = factory.LazyFunction(lambda: "")  # will be set via postgen
+    username = factory.Sequence(lambda n: f"user{n}")
+    full_name = factory.LazyAttribute(lambda o: o.username.capitalize())
+    password_hash = factory.LazyFunction(lambda: "")  # set via postgen
+    age = 25
+    height_cm = 175
+    weight_kg = 75.0
 
     @factory.post_generation
     def password(obj, create, extracted, **kwargs):
-        """Set the password using the model's property for proper hashing.
-
-        Parameters
-        ----------
-        obj: app.models.user.User
-            Instance being initialized by Factory Boy.
-        create: bool
-            Indicates whether the object was actually persisted.
-        extracted: str | None
-            Optional password override supplied by the factory call.
-        **kwargs: dict[str, object]
-            Unused additional keyword arguments from Factory Boy.
-        """
+        """Set password using model setter (ensures hashing)."""
         value = extracted or "Passw0rd!"
-        # Use model's setter so we test the domain logic
         obj.password = value

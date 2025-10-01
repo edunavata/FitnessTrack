@@ -1,10 +1,13 @@
-"""Reusable SQLAlchemy mixins shared by domain models."""
+"""Reusable SQLAlchemy mixins shared by domain models (typed 2.0)."""
 
 from __future__ import annotations
 
-from datetime import datetime
+from typing import Any
 
-from app.core.extensions import db
+from sqlalchemy import DateTime, Integer, func
+from sqlalchemy.orm import Mapped, mapped_column
+
+# Import db from your extensions module
 
 
 class TimestampMixin:
@@ -12,15 +15,22 @@ class TimestampMixin:
 
     Attributes
     ----------
-    created_at: sqlalchemy.sql.schema.Column
-        UTC timestamp filled on insert.
-    updated_at: sqlalchemy.sql.schema.Column
-        UTC timestamp refreshed on updates via SQLAlchemy ``onupdate``.
+    created_at:
+        Timezone-aware timestamp filled by the database on insert.
+    updated_at:
+        Timezone-aware timestamp refreshed by the database on update.
     """
 
-    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = db.Column(
-        db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
+    created_at: Mapped[Any] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),  # DB-side default (UTC if DB is UTC)
+    )
+    updated_at: Mapped[Any] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),  # DB-side onupdate
     )
 
 
@@ -29,18 +39,22 @@ class PKMixin:
 
     Attributes
     ----------
-    id: sqlalchemy.sql.schema.Column
+    id:
         Auto-incrementing integer primary key managed by the database.
     """
 
-    id = db.Column(db.Integer, primary_key=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
 
 
 class ReprMixin:
     """Provide a concise ``__repr__`` including the class name and id."""
 
     def __repr__(self) -> str:
-        # Short and useful representation for debugging
+        """Return a short and useful string representation.
+
+        :returns: Debug-friendly ``<ClassName id=...>``.
+        :rtype: str
+        """
         cls = self.__class__.__name__
         key = getattr(self, "id", None)
         return f"<{cls} id={key}>"

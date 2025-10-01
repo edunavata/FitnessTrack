@@ -1,19 +1,24 @@
-"""Expose SQLAlchemy models for Alembic autogeneration and app imports."""
-
-from .base import db
-from .exercise import Exercise, MuscleGroup
-from .routine import Routine, RoutineExercise
-from .user import User
-from .workout import Workout, WorkoutExercise, WorkoutSet
+from app.models.exercise import Exercise, ExerciseAlias, ExerciseTag, Tag
+from app.models.exercise_log import ExerciseSetLog
+from app.models.routine import (
+    Routine,
+    RoutineDay,
+    RoutineDayExercise,
+    RoutineExerciseSet,
+)
+from app.models.user import User
+from app.models.workout import WorkoutSession
 
 __all__ = [
-    "db",
     "User",
-    "Exercise",
-    "MuscleGroup",
     "Routine",
-    "RoutineExercise",
-    "Workout",
-    "WorkoutExercise",
-    "WorkoutSet",
+    "RoutineDay",
+    "RoutineDayExercise",
+    "RoutineExerciseSet",
+    "Exercise",
+    "ExerciseAlias",
+    "Tag",
+    "ExerciseTag",
+    "WorkoutSession",
+    "ExerciseSetLog",
 ]

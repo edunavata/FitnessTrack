@@ -1,56 +1,79 @@
-"""Unit tests covering constraints and defaults on the Exercise model."""
+"""Unit tests for Exercise catalog models."""
 
 from __future__ import annotations
 
 import pytest
-from app.models.exercise import Exercise, MuscleGroup
 from sqlalchemy.exc import IntegrityError
-from tests.factories.exercise import ExerciseFactory
+from tests.factories.exercise import (
+    ExerciseAliasFactory,
+    ExerciseFactory,
+    ExerciseTagFactory,
+    TagFactory,
+)
 
 
 class TestExerciseModel:
-    """Tests for Exercise domain logic."""
+    def test_basic_persistence(self, session):
+        ex = ExerciseFactory()
+        session.add(ex)
+        session.commit()
 
-    @pytest.mark.unit
-    def test_create_basic_exercise(self, session):
-        """Arrange an exercise via the factory, insert it, and assert defaults persist."""
-        e = ExerciseFactory()
-        session.add(e)
-        session.flush()
+        assert ex.id is not None
+        assert ex.slug.startswith("exercise-")
+        assert ex.is_active is True
 
-        assert e.id is not None
-        assert isinstance(e.muscle_group, MuscleGroup)
-        assert e.is_unilateral in (True, False)
-        assert e.created_at is not None
-        assert e.updated_at is not None
+    def test_unique_slug_constraint(self, session):
+        e1 = ExerciseFactory(slug="bench-press")
+        session.add(e1)
+        session.commit()
 
-    @pytest.mark.unit
-    def test_name_unique(self, session):
-        """Arrange two exercises sharing a name, flush, and expect an integrity error."""
-        _ = ExerciseFactory(name="Squat", muscle_group=MuscleGroup.QUADS)
-        session.flush()
+        # build (no persistido aún)
+        e2 = ExerciseFactory.build(slug="bench-press")
+        session.add(e2)
 
-        session.add(Exercise(name="Squat", muscle_group=MuscleGroup.QUADS))
         with pytest.raises(IntegrityError):
-            session.flush()
+            session.flush()  # aquí forzamos el error
+        session.rollback()
 
-    @pytest.mark.unit
-    def test_muscle_group_required(self, session):
-        """Arrange an exercise missing ``muscle_group``, flush, and assert the DB rejects it."""
-        e = Exercise(name="Deadlift", muscle_group=None)
-        session.add(e)
+    def test_alias_uniqueness(self, session):
+        ex = ExerciseFactory()
+        session.add(ex)
+        session.commit()
+
+        alias1 = ExerciseAliasFactory(exercise=ex, alias="Hip Thrust")
+        alias2 = ExerciseAliasFactory.build(exercise=ex, alias="Hip Thrust")
+
+        session.add(alias1)
+        session.add(alias2)
         with pytest.raises(IntegrityError):
-            session.flush()
+            session.commit()
 
-    @pytest.mark.unit
-    def test_is_unilateral_default_false(self, session):
-        """Confirm default unilateral flag persists.
+    def test_tag_uniqueness(self, session):
+        ex = ExerciseFactory()
+        tag = TagFactory(name="POWERLIFTING")
+        session.add_all([ex, tag])
+        session.commit()
 
-        Arrange with a factory exercise using the default field.
-        Act by flushing the session.
-        Assert the stored value resolves to ``False``.
-        """
-        e = ExerciseFactory(is_unilateral=None)  # factory override
-        session.add(e)
-        session.flush()
-        assert e.is_unilateral is False
+        et1 = ExerciseTagFactory(exercise=ex, tag=tag)
+        session.add(et1)
+        session.commit()
+
+        et2 = ExerciseTagFactory.build(exercise=ex, tag=tag)
+        session.add(et2)
+        with pytest.raises(IntegrityError):
+            session.commit()
+
+    def test_relationships_navigation(self, session):
+        ex = ExerciseFactory()
+        alias = ExerciseAliasFactory(exercise=ex)
+        tag = TagFactory()
+        et = ExerciseTagFactory(exercise=ex, tag=tag)
+
+        session.add_all([ex, alias, tag, et])
+        session.commit()
+
+        assert alias in ex.aliases
+        assert et in ex.tags
+        assert et.exercise == ex
+        assert et.tag == tag
+        assert et in tag.exercises

@@ -1,89 +1,132 @@
-"""User model definition supporting password hashing for JWT auth."""
+"""User model definition for the fitness tracking app."""
 
 from __future__ import annotations
 
-from typing import cast
+from typing import TYPE_CHECKING, Any, cast
 
+from sqlalchemy import DateTime, Index, Integer, Numeric, String, UniqueConstraint, func
+from sqlalchemy.orm import Mapped, mapped_column, validates
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from app.core.extensions import db
 
-from .base import PKMixin, ReprMixin, TimestampMixin
+from .base import PKMixin, ReprMixin
+
+if TYPE_CHECKING:
+    from app.models.exercise_log import ExerciseSetLog
+    from app.models.routine import Routine
+    from app.models.workout import WorkoutSession
 
 
-class User(PKMixin, TimestampMixin, ReprMixin, db.Model):
-    """Minimal user entity used for authentication and ownership.
-
-    Attributes
-    ----------
-    id: int
-        Surrogate primary key.
-    email: str
-        Unique login identifier validated at the database level.
-    name: str
-        Display name stored alongside the email address.
-    password_hash: str
-        Hash computed by :func:`werkzeug.security.generate_password_hash`.
-    created_at: datetime.datetime
-        Timestamp set when the record is inserted.
-    updated_at: datetime.datetime
-        Timestamp refreshed whenever the record mutates.
-    routines: list[app.models.routine.Routine]
-        Collection of routine templates owned by the user.
-    workouts: list[app.models.workout.Workout]
-        Collection of recorded workouts associated with the user.
-    """
+class User(PKMixin, ReprMixin, db.Model):
+    """User entity for authentication and fitness tracking."""
 
     __tablename__ = "users"
 
-    email = db.Column(db.String(254), unique=True, nullable=False, index=True)
-    name = db.Column(db.String(120), nullable=False)
-    password_hash = db.Column(db.String(128), nullable=False)
+    # Columns
+    email: Mapped[str] = mapped_column(String(254), nullable=False)
+    password_hash: Mapped[str] = mapped_column(String(128), nullable=False)
+    username: Mapped[str] = mapped_column(String(50), nullable=False)
+    full_name: Mapped[str | None] = mapped_column(String(100))
+    age: Mapped[int | None] = mapped_column(Integer)
+    height_cm: Mapped[int | None] = mapped_column(Integer)
+    weight_kg: Mapped[float | None] = mapped_column(Numeric(5, 2))
+    created_at: Mapped[Any] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[Any] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
 
-    # Relationships
-    routines = db.relationship("Routine", back_populates="user", cascade="all, delete-orphan")
-    workouts = db.relationship("Workout", back_populates="user", cascade="all, delete-orphan")
+    __table_args__ = (
+        UniqueConstraint("email", name="uq_users_email"),
+        UniqueConstraint("username", name="uq_users_username"),
+        Index("ix_users_email", "email"),
+        Index("ix_users_username", "username"),
+        Index("ix_users_created_at", "created_at"),
+    )
 
+    routines: Mapped[list[Routine]] = db.relationship(
+        "Routine",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        lazy="selectin",
+    )
+
+    workouts: Mapped[list[WorkoutSession]] = db.relationship(
+        "WorkoutSession",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        lazy="selectin",
+    )
+    exercise_logs: Mapped[list[ExerciseSetLog]] = db.relationship(
+        "ExerciseSetLog",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        lazy="selectin",
+    )
+
+    # --- Password handling ---
     @property
     def password(self) -> str:
-        """Prevent reading the raw password.
-
-        Raises
-        ------
-        AttributeError
-            Always raised to prevent disclosure of secret credentials.
-
-        Notes
-        -----
-        The property is intentionally write-only; use :meth:`verify_password`
-        to check credentials instead of reading them back.
-        """
         raise AttributeError("password is write-only")
 
     @password.setter
     def password(self, value: str) -> None:
-        """Hash and store the password.
-
-        Parameters
-        ----------
-        value: str
-            Plaintext password which will be transformed using
-            :func:`werkzeug.security.generate_password_hash`.
-        """
         self.password_hash = generate_password_hash(value)
 
     def verify_password(self, value: str) -> bool:
-        """Check a plaintext password against the stored hash.
-
-        Parameters
-        ----------
-        value: str
-            Password candidate provided by a client.
-
-        Returns
-        -------
-        bool
-            ``True`` when the candidate matches ``password_hash``;
-            ``False`` otherwise.
-        """
         return cast(bool, check_password_hash(self.password_hash, value))
+
+    # --- Validators ---
+    @validates("email")
+    def _normalize_email(self, key: str, raw: str) -> str:
+        value = raw.strip().lower()
+        if "@" not in value:
+            raise ValueError("invalid email")
+        return value
+
+    @validates("username")
+    def _validate_username(self, key: str, raw: str) -> str:
+        value = raw.strip()
+        if not value:
+            raise ValueError("username cannot be empty")
+        if len(value) > 50:
+            raise ValueError("username too long")
+        return value
+
+    @validates("full_name")
+    def _validate_full_name(self, key: str, raw: str | None) -> str | None:
+        if raw is None:
+            return None
+        return raw.strip() or None
+
+    @validates("age")
+    def _validate_age(self, key: str, raw: int | None) -> int | None:
+        if raw is None:
+            return None
+        if raw < 0:
+            raise ValueError("age cannot be negative")
+        return raw
+
+    @validates("height_cm")
+    def _validate_height(self, key: str, raw: int | None) -> int | None:
+        if raw is None:
+            return None
+        if raw <= 0:
+            raise ValueError("height must be positive")
+        return raw
+
+    @validates("weight_kg")
+    def _validate_weight(self, key: str, raw: float | None) -> float | None:
+        if raw is None:
+            return None
+        if raw <= 0:
+            raise ValueError("weight must be positive")
+        return raw
