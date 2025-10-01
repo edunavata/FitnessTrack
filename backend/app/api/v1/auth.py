@@ -82,7 +82,7 @@ def login():
     if user is None or not user.verify_password(password):
         raise Unauthorized("Invalid credentials")
 
-    token = create_access_token(identity=user.id)
+    token = create_access_token(identity=str(user.id))
     return {"access_token": token}
 
 
