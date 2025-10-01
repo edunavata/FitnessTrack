@@ -24,8 +24,8 @@ def register():
     Returns
     -------
     tuple[dict[str, int | str], int]
-        JSON payload containing the newly created user's ``id`` and ``email``
-        plus the ``201 Created`` status code.
+        JSON payload containing the newly created user's ``id``, ``email`` and
+        ``name`` plus the ``201 Created`` status code.
 
     Raises
     ------
@@ -34,22 +34,23 @@ def register():
 
     Notes
     -----
-    - Request payload must include ``email`` and ``password`` fields that pass
-      :class:`app.schemas.RegisterSchema` validation.
+    - Request payload must include ``name``, ``email`` and ``password`` fields
+      that pass :class:`app.schemas.RegisterSchema` validation.
     - Passwords are hashed via :meth:`app.models.user.User.password` before
       persistence; no plain text storage occurs.
     """
     data = load_data(RegisterSchema(), request.get_json() or {})
+    name = data["name"]
     email = data["email"]
     password = data["password"]
     if User.query.filter_by(email=email).first() is not None:
         raise Conflict("Email already registered")
 
-    user = User(email=email)
+    user = User(email=email, name=name)
     user.password = password
     db.session.add(user)
     db.session.commit()
-    return {"id": user.id, "email": user.email}, 201
+    return {"id": user.id, "email": user.email, "name": user.name}, 201
 
 
 @bp.post("/login")
@@ -93,7 +94,7 @@ def me():
     Returns
     -------
     dict[str, int | str]
-        JSON payload exposing the current user's ``id`` and ``email``.
+        JSON payload exposing the current user's ``id``, ``email`` and ``name``.
 
     Raises
     ------
@@ -111,4 +112,4 @@ def me():
     user = User.query.get(user_id)
     if user is None:
         raise Unauthorized("User not found")
-    return {"id": user.id, "email": user.email}
+    return {"id": user.id, "email": user.email, "name": user.name}
