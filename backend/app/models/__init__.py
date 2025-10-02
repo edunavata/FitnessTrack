@@ -1,3 +1,4 @@
+from app.models.cycle import Cycle
 from app.models.exercise import Exercise, ExerciseAlias, ExerciseTag, Tag
 from app.models.exercise_log import ExerciseSetLog
 from app.models.routine import (
@@ -21,4 +22,5 @@ __all__ = [
     "ExerciseTag",
     "WorkoutSession",
     "ExerciseSetLog",
+    "Cycle",
 ]

@@ -22,6 +22,7 @@ from app.core.extensions import db
 from .base import PKMixin, ReprMixin, TimestampMixin
 
 if TYPE_CHECKING:
+    from .cycle import Cycle
     from .exercise import Exercise
     from .user import User
 
@@ -46,6 +47,12 @@ class Routine(PKMixin, TimestampMixin, ReprMixin, db.Model):
     user: Mapped[User] = relationship("User", back_populates="routines")
     days: Mapped[list[RoutineDay]] = relationship(
         "RoutineDay",
+        back_populates="routine",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    cycles: Mapped[list[Cycle]] = relationship(
+        "Cycle",
         back_populates="routine",
         cascade="all, delete-orphan",
         passive_deletes=True,

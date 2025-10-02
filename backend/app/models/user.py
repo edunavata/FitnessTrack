@@ -13,6 +13,7 @@ from app.core.extensions import db
 from .base import PKMixin, ReprMixin, TimestampMixin
 
 if TYPE_CHECKING:
+    from app.models.cycle import Cycle
     from app.models.exercise_log import ExerciseSetLog
     from app.models.routine import Routine
     from app.models.workout import WorkoutSession
@@ -57,6 +58,14 @@ class User(PKMixin, ReprMixin, TimestampMixin, db.Model):
     )
     exercise_logs: Mapped[list[ExerciseSetLog]] = db.relationship(
         "ExerciseSetLog",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        lazy="selectin",
+    )
+
+    cycles: Mapped[list[Cycle]] = db.relationship(
+        "Cycle",
         back_populates="user",
         cascade="all, delete-orphan",
         passive_deletes=True,
