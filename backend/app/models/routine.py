@@ -24,38 +24,55 @@ from .base import PKMixin, ReprMixin, TimestampMixin
 if TYPE_CHECKING:
     from .cycle import Cycle
     from .exercise import Exercise
-    from .user import User
+    from .subject import Subject  # ← remapped from User to Subject
 
 
 class Routine(PKMixin, TimestampMixin, ReprMixin, db.Model):
-    """Mesocycle template owned by a user."""
+    """
+    Mesocycle template owned by a subject (GDPR subject pattern).
+
+    Notes
+    -----
+    This entity is pseudonymous by design. All ownership references point to
+    :class:`app.models.subject.Subject` instead of ``User``.
+    """
 
     __tablename__ = "routines"
 
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    # Remapped: user_id → subject_id
+    subject_id: Mapped[int] = mapped_column(
+        ForeignKey("subjects.id", ondelete="CASCADE"), nullable=False
+    )
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
     starts_on: Mapped[Any | None] = mapped_column(Date)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
 
     __table_args__ = (
-        Index("ix_routines_user_active", "user_id", "is_active"),
-        UniqueConstraint("user_id", "name", name="uq_routines_user_name"),
+        Index("ix_routines_subject_active", "subject_id", "is_active"),
+        UniqueConstraint("subject_id", "name", name="uq_routines_subject_name"),
     )
 
     # Relationships
-    user: Mapped[User] = relationship("User", back_populates="routines")
+    subject: Mapped[Subject] = relationship(  # ← back_populates subject
+        "Subject",
+        back_populates="routines",
+        passive_deletes=True,
+        lazy="selectin",
+    )
     days: Mapped[list[RoutineDay]] = relationship(
         "RoutineDay",
         back_populates="routine",
         cascade="all, delete-orphan",
         passive_deletes=True,
+        lazy="selectin",
     )
     cycles: Mapped[list[Cycle]] = relationship(
         "Cycle",
         back_populates="routine",
         cascade="all, delete-orphan",
         passive_deletes=True,
+        lazy="selectin",
     )
 
 
@@ -77,12 +94,13 @@ class RoutineDay(PKMixin, TimestampMixin, ReprMixin, db.Model):
     )
 
     # Relationships
-    routine: Mapped[Routine] = relationship("Routine", back_populates="days")
+    routine: Mapped[Routine] = relationship("Routine", back_populates="days", lazy="selectin")
     exercises: Mapped[list[RoutineDayExercise]] = relationship(
         "RoutineDayExercise",
         back_populates="routine_day",
         cascade="all, delete-orphan",
         passive_deletes=True,
+        lazy="selectin",
     )
 
 
@@ -106,13 +124,16 @@ class RoutineDayExercise(PKMixin, TimestampMixin, ReprMixin, db.Model):
     )
 
     # Relationships
-    routine_day: Mapped[RoutineDay] = relationship("RoutineDay", back_populates="exercises")
-    exercise: Mapped[Exercise] = relationship("Exercise")
+    routine_day: Mapped[RoutineDay] = relationship(
+        "RoutineDay", back_populates="exercises", lazy="selectin"
+    )
+    exercise: Mapped[Exercise] = relationship("Exercise", lazy="selectin")
     sets: Mapped[list[RoutineExerciseSet]] = relationship(
         "RoutineExerciseSet",
         back_populates="routine_day_exercise",
         cascade="all, delete-orphan",
         passive_deletes=True,
+        lazy="selectin",
     )
 
 
@@ -143,5 +164,5 @@ class RoutineExerciseSet(PKMixin, TimestampMixin, ReprMixin, db.Model):
 
     # Relationships
     routine_day_exercise: Mapped[RoutineDayExercise] = relationship(
-        "RoutineDayExercise", back_populates="sets"
+        "RoutineDayExercise", back_populates="sets", lazy="selectin"
     )

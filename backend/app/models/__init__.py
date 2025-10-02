@@ -7,6 +7,7 @@ from app.models.routine import (
     RoutineDayExercise,
     RoutineExerciseSet,
 )
+from app.models.subject import Subject, SubjectBodyMetrics, SubjectProfile
 from app.models.user import User
 from app.models.workout import WorkoutSession
 
@@ -23,4 +24,7 @@ __all__ = [
     "WorkoutSession",
     "ExerciseSetLog",
     "Cycle",
+    "Subject",
+    "SubjectProfile",
+    "SubjectBodyMetrics",
 ]

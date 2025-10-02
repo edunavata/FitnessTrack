@@ -9,7 +9,14 @@ from tests.factories import BaseFactory
 
 
 class UserFactory(BaseFactory):
-    """Build persisted :class:`app.models.user.User` instances."""
+    """
+    Build persisted :class:`app.models.user.User` instances.
+
+    Notes
+    -----
+    - Indirect PII (age, height, weight, etc.) is *not* part of ``User``.
+      Those attributes belong to subject-scoped tables.
+    """
 
     class Meta:
         model = User
@@ -19,9 +26,6 @@ class UserFactory(BaseFactory):
     username = factory.Sequence(lambda n: f"user{n}")
     full_name = factory.LazyAttribute(lambda o: o.username.capitalize())
     password_hash = factory.LazyFunction(lambda: "")  # set via postgen
-    age = 25
-    height_cm = 175
-    weight_kg = 75.0
 
     @factory.post_generation
     def password(obj, create, extracted, **kwargs):

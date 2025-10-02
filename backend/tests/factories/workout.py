@@ -1,4 +1,4 @@
-"""Factory Boy definition for WorkoutSession."""
+"""Factory Boy definition for :class:`app.models.workout.WorkoutSession`."""
 
 from __future__ import annotations
 
@@ -8,8 +8,8 @@ from app.models.workout import WorkoutSession
 
 import factory
 from tests.factories import BaseFactory
-from tests.factories.routine import RoutineDayFactory
-from tests.factories.user import UserFactory
+from tests.factories.routine import RoutineDayFactory, RoutineFactory
+from tests.factories.subject import SubjectFactory
 
 
 class WorkoutSessionFactory(BaseFactory):
@@ -19,7 +19,9 @@ class WorkoutSessionFactory(BaseFactory):
         model = WorkoutSession
 
     id = None
-    user = factory.SubFactory(UserFactory)
+    subject = factory.SubFactory(SubjectFactory)
+    subject_id = factory.SelfAttribute("subject.id")
+
     workout_date = factory.LazyFunction(lambda: datetime.date.today())
     status = "PENDING"
     location = "Gym A"
@@ -27,5 +29,8 @@ class WorkoutSessionFactory(BaseFactory):
     bodyweight_kg = 80.0
     notes = "Good session"
 
-    # optional relation
-    routine_day = factory.SubFactory(RoutineDayFactory)
+    # By default, attach a RoutineDay that belongs to the same subject (via Routine)
+    @factory.lazy_attribute
+    def routine_day(self):
+        routine = RoutineFactory(subject=self.subject)
+        return RoutineDayFactory(routine=routine)

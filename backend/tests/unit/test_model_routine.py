@@ -10,6 +10,7 @@ from tests.factories.routine import (
     RoutineExerciseSetFactory,
     RoutineFactory,
 )
+from tests.factories.subject import SubjectFactory
 
 
 class TestRoutineModel:
@@ -18,15 +19,16 @@ class TestRoutineModel:
         session.add(r)
         session.commit()
         assert r.id is not None
-        assert r.user is not None
+        assert r.subject is not None  # ← was user
         assert r.is_active is True
 
-    def test_unique_routine_name_per_user(self, session):
-        r1 = RoutineFactory(name="Hypertrophy")
+    def test_unique_routine_name_per_subject(self, session):
+        s = SubjectFactory()
+        r1 = RoutineFactory(subject=s, name="Hypertrophy")
         session.add(r1)
         session.commit()
 
-        r2 = RoutineFactory.build(user=r1.user, name="Hypertrophy")
+        r2 = RoutineFactory.build(subject=s, name="Hypertrophy")
         session.add(r2)
         with pytest.raises(IntegrityError):
             session.flush()
@@ -78,4 +80,4 @@ class TestRoutineModel:
         assert d in r.days
         assert ex in d.exercises
         assert s in ex.sets
-        assert r.user is not None
+        assert r.subject is not None  # ← was user

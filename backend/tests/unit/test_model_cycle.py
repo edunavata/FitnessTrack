@@ -6,7 +6,7 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 from tests.factories.cycle import CycleFactory
 from tests.factories.routine import RoutineFactory
-from tests.factories.user import UserFactory
+from tests.factories.subject import SubjectFactory
 from tests.factories.workout import WorkoutSessionFactory
 
 
@@ -17,7 +17,7 @@ class TestCycleModel:
         session.commit()
 
         assert c.id is not None
-        assert c.user is not None
+        assert c.subject is not None
         assert c.routine is not None
         assert c.cycle_number == 1
 
@@ -26,27 +26,28 @@ class TestCycleModel:
         session.add(c1)
         session.commit()
 
-        c2 = CycleFactory.build(routine=c1.routine, user=c1.user, cycle_number=1)
+        c2 = CycleFactory.build(routine=c1.routine, subject=c1.subject, cycle_number=1)
         session.add(c2)
         with pytest.raises(IntegrityError):
             session.flush()
         session.rollback()
 
     def test_same_cycle_number_allowed_on_other_routine(self, session):
-        user = UserFactory()
-        r1 = RoutineFactory(user=user, name="R1")
-        r2 = RoutineFactory(user=user, name="R2")
-        c1 = CycleFactory(routine=r1, user=user, cycle_number=1)
-        c2 = CycleFactory(routine=r2, user=user, cycle_number=1)
+        s = SubjectFactory()
+        r1 = RoutineFactory(subject=s, name="R1")
+        r2 = RoutineFactory(subject=s, name="R2")
+        c1 = CycleFactory(routine=r1, subject=s, cycle_number=1)
+        c2 = CycleFactory(routine=r2, subject=s, cycle_number=1)
 
         session.add_all([c1, c2])
         session.commit()
 
         assert c1.id != c2.id
+        assert c1.subject_id == c2.subject_id  # same subject across routines
 
-    def test_workout_session_can_link_to_cycle_if_same_user(self, session):
+    def test_workout_session_can_link_to_cycle_if_same_subject(self, session):
         c = CycleFactory()
-        ws = WorkoutSessionFactory(user=c.user)  # same user
+        ws = WorkoutSessionFactory(subject=c.subject)  # same subject
         ws.cycle = c
 
         session.add_all([c, ws])

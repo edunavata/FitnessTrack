@@ -12,21 +12,26 @@ from app.models.routine import (
 import factory
 from tests.factories import BaseFactory
 from tests.factories.exercise import ExerciseFactory
-from tests.factories.user import UserFactory
+from tests.factories.subject import SubjectFactory  # ← switch to Subject
 
 
 class RoutineFactory(BaseFactory):
+    """Build persisted :class:`app.models.routine.Routine` instances."""
+
     class Meta:
         model = Routine
 
     id = None
-    user = factory.SubFactory(UserFactory)
+    subject = factory.SubFactory(SubjectFactory)  # ← was UserFactory
+    subject_id = factory.SelfAttribute("subject.id")
     name = factory.Sequence(lambda n: f"Routine {n}")
     description = "Basic routine"
     is_active = True
 
 
 class RoutineDayFactory(BaseFactory):
+    """Build persisted :class:`app.models.routine.RoutineDay` instances."""
+
     class Meta:
         model = RoutineDay
 
@@ -38,6 +43,8 @@ class RoutineDayFactory(BaseFactory):
 
 
 class RoutineDayExerciseFactory(BaseFactory):
+    """Build persisted :class:`app.models.routine.RoutineDayExercise` instances."""
+
     class Meta:
         model = RoutineDayExercise
 
@@ -48,6 +55,8 @@ class RoutineDayExerciseFactory(BaseFactory):
 
 
 class RoutineExerciseSetFactory(BaseFactory):
+    """Build persisted :class:`app.models.routine.RoutineExerciseSet` instances."""
+
     class Meta:
         model = RoutineExerciseSet
 

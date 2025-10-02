@@ -47,21 +47,17 @@ class TestUser:
         with pytest.raises(IntegrityError):
             session.commit()
 
-    def test_age_and_height_validation(self, session):
+    def test_no_indirect_pii_fields(self):
+        # User must not include indirect PII fields anymore
         u = User(email="c@example.com", username="charlie")
-        u.password = "pw"
-        u.age = 25
-        u.height_cm = 180
-        u.weight_kg = 80.5
-        session.add(u)
-        session.commit()
-        assert u.age == 25
-        assert u.height_cm == 180
-        assert float(u.weight_kg) == 80.5
+        assert not hasattr(u, "age")
+        assert not hasattr(u, "height_cm")
+        assert not hasattr(u, "weight_kg")
 
+    def test_basic_validations(self, session):
+        # email required
         with pytest.raises(ValueError):
-            u.age = -1
+            User(email="", username="u")._normalize_email("email", "")
+        # username required
         with pytest.raises(ValueError):
-            u.height_cm = 0
-        with pytest.raises(ValueError):
-            u.weight_kg = -10
+            User(email="x@example.com", username=" ")._normalize_username("username", " ")
