@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import (
     Date,
-    DateTime,
     Enum,
     ForeignKey,
     Index,
@@ -15,7 +14,6 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
-    func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -52,16 +50,6 @@ class WorkoutSession(PKMixin, TimestampMixin, ReprMixin, db.Model):
     perceived_fatigue: Mapped[int | None] = mapped_column(Integer)
     bodyweight_kg: Mapped[float | None] = mapped_column(Numeric(5, 2))
     notes: Mapped[str | None] = mapped_column(Text)
-
-    created_at: Mapped[Any] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
-    updated_at: Mapped[Any] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        onupdate=func.now(),
-        nullable=False,
-    )
 
     __table_args__ = (
         UniqueConstraint("user_id", "workout_date", name="uq_ws_user_date"),

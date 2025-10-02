@@ -2,25 +2,23 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
-    DateTime,
     Enum,
     ForeignKey,
     Index,
     String,
     Text,
     UniqueConstraint,
-    func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.extensions import db
 
-from .base import PKMixin, ReprMixin
+from .base import PKMixin, ReprMixin, TimestampMixin
 
 if TYPE_CHECKING:
     from .exercise_secondary import ExerciseSecondaryMuscle
@@ -86,7 +84,7 @@ MovementPattern = Enum(
 )
 
 
-class Exercise(PKMixin, ReprMixin, db.Model):
+class Exercise(PKMixin, ReprMixin, TimestampMixin, db.Model):
     """Catalog of exercises with biomechanical metadata."""
 
     __tablename__ = "exercises"
@@ -108,16 +106,6 @@ class Exercise(PKMixin, ReprMixin, db.Model):
     instructions: Mapped[str | None] = mapped_column(Text)
     video_url: Mapped[str | None] = mapped_column(String(255))
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
-
-    created_at: Mapped[Any] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
-    updated_at: Mapped[Any] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        onupdate=func.now(),
-        nullable=False,
-    )
 
     __table_args__ = (
         Index("ix_exercises_name", "name"),
@@ -147,7 +135,7 @@ class Exercise(PKMixin, ReprMixin, db.Model):
     )
 
 
-class ExerciseAlias(PKMixin, ReprMixin, db.Model):
+class ExerciseAlias(PKMixin, ReprMixin, TimestampMixin, db.Model):
     """Alternative names for exercises."""
 
     __tablename__ = "exercise_aliases"
@@ -163,7 +151,7 @@ class ExerciseAlias(PKMixin, ReprMixin, db.Model):
     exercise: Mapped[Exercise] = relationship("Exercise", back_populates="aliases")
 
 
-class Tag(PKMixin, ReprMixin, db.Model):
+class Tag(PKMixin, ReprMixin, TimestampMixin, db.Model):
     """Curated free-form tags."""
 
     __tablename__ = "tags"
@@ -181,7 +169,7 @@ class Tag(PKMixin, ReprMixin, db.Model):
     )
 
 
-class ExerciseTag(db.Model):
+class ExerciseTag(TimestampMixin, ReprMixin, db.Model):
     """Many-to-many join table for exercises and tags."""
 
     __tablename__ = "exercise_tags"

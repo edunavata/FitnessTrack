@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, cast
 
-from sqlalchemy import DateTime, Index, Integer, Numeric, String, UniqueConstraint, func
+from sqlalchemy import Index, Integer, Numeric, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, validates
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from app.core.extensions import db
 
-from .base import PKMixin, ReprMixin
+from .base import PKMixin, ReprMixin, TimestampMixin
 
 if TYPE_CHECKING:
     from app.models.exercise_log import ExerciseSetLog
@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from app.models.workout import WorkoutSession
 
 
-class User(PKMixin, ReprMixin, db.Model):
+class User(PKMixin, ReprMixin, TimestampMixin, db.Model):
     """User entity for authentication and fitness tracking."""
 
     __tablename__ = "users"
@@ -31,15 +31,6 @@ class User(PKMixin, ReprMixin, db.Model):
     age: Mapped[int | None] = mapped_column(Integer)
     height_cm: Mapped[int | None] = mapped_column(Integer)
     weight_kg: Mapped[float | None] = mapped_column(Numeric(5, 2))
-    created_at: Mapped[Any] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
-    updated_at: Mapped[Any] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        onupdate=func.now(),
-        nullable=False,
-    )
 
     __table_args__ = (
         UniqueConstraint("email", name="uq_users_email"),
