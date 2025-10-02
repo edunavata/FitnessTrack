@@ -9,7 +9,7 @@ from flask_sqlalchemy import SQLAlchemy
 
 # Global singletons (import-safe)
 db: SQLAlchemy = SQLAlchemy(session_options={"autoflush": False})
-migrate = Migrate()
+migrate = Migrate(render_as_batch=True)
 jwt = JWTManager()
 
 

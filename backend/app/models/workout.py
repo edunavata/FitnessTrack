@@ -48,7 +48,9 @@ class WorkoutSession(PKMixin, TimestampMixin, ReprMixin, db.Model):
         ForeignKey("routine_days.id", ondelete="SET NULL")
     )
 
-    cycle_id: Mapped[int | None] = mapped_column(ForeignKey("cycles.id", ondelete="SET NULL"))
+    cycle_id: Mapped[int | None] = mapped_column(
+        ForeignKey("cycles.id", name="fk_ws_cycle_id", ondelete="SET NULL")
+    )
 
     location: Mapped[str | None] = mapped_column(String(120))
     perceived_fatigue: Mapped[int | None] = mapped_column(Integer)
