@@ -57,6 +57,10 @@ A full-stack fitness workout tracking application built to consolidate the skill
 └── README.md
 ```
 
+## Data Model Documentation
+
+Review the [backend data model reference](backend/app/models/README.md) for a complete overview of every domain entity. The document includes detailed field descriptions and an accompanying Mermaid diagram that visualizes the relationships across the schema.
+
 ## Installation
 
 1. **Clone the repository**
