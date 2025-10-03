@@ -65,10 +65,10 @@ class ExerciseSetLog(PKMixin, TimestampMixin, ReprMixin, db.Model):
     to_failure: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
 
     # --- Actuals (performed) ---
-    actual_weight_kg: Mapped[float | None] = mapped_column(Numeric(6, 2))
+    actual_weight_kg: Mapped[float | None] = mapped_column(Numeric(6, 2, asdecimal=False))
     actual_reps: Mapped[int | None] = mapped_column(Integer)
     actual_rir: Mapped[int | None] = mapped_column(Integer)
-    actual_rpe: Mapped[float | None] = mapped_column(Numeric(3, 1))
+    actual_rpe: Mapped[float | None] = mapped_column(Numeric(3, 1, asdecimal=False))
     actual_tempo: Mapped[str | None] = mapped_column(String(15))
     actual_rest_s: Mapped[int | None] = mapped_column(Integer)
 

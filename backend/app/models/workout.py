@@ -59,7 +59,7 @@ class WorkoutSession(PKMixin, TimestampMixin, ReprMixin, db.Model):
 
     location: Mapped[str | None] = mapped_column(String(120))
     perceived_fatigue: Mapped[int | None] = mapped_column(Integer)
-    bodyweight_kg: Mapped[float | None] = mapped_column(Numeric(5, 2))
+    bodyweight_kg: Mapped[float | None] = mapped_column(Numeric(5, 2, asdecimal=False))
     notes: Mapped[str | None] = mapped_column(Text)
 
     __table_args__ = (
