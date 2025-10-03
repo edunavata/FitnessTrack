@@ -61,6 +61,10 @@ A full-stack fitness workout tracking application built to consolidate the skill
 
 Review the [backend data model reference](backend/app/models/README.md) for a complete overview of every domain entity. The document includes detailed field descriptions and an accompanying Mermaid diagram that visualizes the relationships across the schema.
 
+## Backend Operations Guide
+
+For API setup, environment configuration, migrations, and seeding workflows, see the dedicated [backend README](backend/README.md). It provides a quick-start guide, variable reference tables, and troubleshooting tips to keep the development environment running smoothly.
+
 ## Installation
 
 1. **Clone the repository**
