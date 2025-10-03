@@ -16,9 +16,12 @@ class TestSubjectProfile:
         session.add(s)
         session.flush()
 
-        p = SubjectProfile(subject=s, sex=SexEnum.OTHER)
-        p.set_birth_year(2000)
-        p.set_height_cm(175)
+        p = SubjectProfile(
+            subject=s,
+            sex=SexEnum.OTHER,
+            birth_year=2000,
+            height_cm=175,
+        )
 
         session.add(p)
         session.commit()
@@ -65,19 +68,28 @@ class TestSubjectProfile:
         p = SubjectProfile(subject=s)
 
         with pytest.raises(ValueError):
-            p.set_birth_year(1800)
+            p.birth_year = 1800
 
         with pytest.raises(ValueError):
-            p.set_birth_year(date.today().year + 1)
+            p.birth_year = date.today().year + 1
 
-        p.set_birth_year(None)
+        p.birth_year = None
         assert p.birth_year is None
 
         with pytest.raises(ValueError):
-            p.set_height_cm(0)
+            p.height_cm = 0
 
-        p.set_height_cm(None)
+        p.height_cm = None
         assert p.height_cm is None
+
+        with pytest.raises(ValueError):
+            p.dominant_hand = ""
+
+        with pytest.raises(ValueError):
+            p.dominant_hand = "right-handed"
+
+        p.dominant_hand = "Left"
+        assert p.dominant_hand == "Left"
 
 
 class TestSubjectBodyMetrics:
@@ -114,21 +126,21 @@ class TestSubjectBodyMetrics:
         m = SubjectBodyMetrics(subject=s, measured_on=date.today())
 
         with pytest.raises(ValueError):
-            m.set_weight_kg(-1)
+            m.weight_kg = -1
 
         with pytest.raises(ValueError):
-            m.set_bodyfat_pct(-0.1)
+            m.bodyfat_pct = -0.1
 
         with pytest.raises(ValueError):
-            m.set_bodyfat_pct(100.1)
+            m.bodyfat_pct = 100.1
 
         with pytest.raises(ValueError):
-            m.set_resting_hr(0)
+            m.resting_hr = 0
 
         # valid values
-        m.set_weight_kg(82.3)
-        m.set_bodyfat_pct(12.5)
-        m.set_resting_hr(55)
+        m.weight_kg = 82.3
+        m.bodyfat_pct = 12.5
+        m.resting_hr = 55
 
         session.add_all([s, m])
         session.commit()
