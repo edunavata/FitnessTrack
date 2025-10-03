@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date
 from enum import Enum
 from typing import TYPE_CHECKING
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from sqlalchemy import (
     Date,
@@ -19,8 +19,8 @@ from sqlalchemy import (
 from sqlalchemy import (
     Enum as SAEnum,
 )
-from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.extensions import db
 
@@ -54,7 +54,7 @@ class Subject(PKMixin, ReprMixin, TimestampMixin, db.Model):
     user_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True, unique=True
     )
-    pseudonym: Mapped[str] = mapped_column(UUID(as_uuid=True), nullable=False, default=uuid4)
+    pseudonym: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False, default=uuid4)
 
     user = relationship(
         "User",
@@ -249,8 +249,8 @@ class SubjectBodyMetrics(PKMixin, ReprMixin, TimestampMixin, db.Model):
     )
     measured_on: Mapped[date] = mapped_column(Date, nullable=False)
 
-    weight_kg: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
-    bodyfat_pct: Mapped[float | None] = mapped_column(Numeric(4, 1), nullable=True)
+    weight_kg: Mapped[float | None] = mapped_column(Numeric(5, 2, asdecimal=False), nullable=True)
+    bodyfat_pct: Mapped[float | None] = mapped_column(Numeric(4, 1, asdecimal=False), nullable=True)
     resting_hr: Mapped[int | None] = mapped_column(Integer, nullable=True)
     notes: Mapped[str | None] = mapped_column(db.Text, nullable=True)
 
