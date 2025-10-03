@@ -3,13 +3,9 @@
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from typing import Any, TypeVar, cast
 from uuid import UUID
-
-from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import select
-from sqlalchemy.orm import Session
 
 from app.models.cycle import Cycle
 from app.models.exercise import (
@@ -18,8 +14,8 @@ from app.models.exercise import (
     ExerciseTag,
     Tag,
 )
-from app.models.exercise_secondary import ExerciseSecondaryMuscle
 from app.models.exercise_log import ExerciseSetLog
+from app.models.exercise_secondary import ExerciseSecondaryMuscle
 from app.models.routine import (
     Routine,
     RoutineDay,
@@ -30,9 +26,12 @@ from app.models.routine import (
 from app.models.subject import SexEnum, Subject, SubjectBodyMetrics, SubjectProfile
 from app.models.user import User
 from app.models.workout import WorkoutSession
+from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 LOGGER = logging.getLogger(__name__)
-UTC = timezone.utc
+UTC = UTC
 
 T = TypeVar("T")
 
@@ -853,7 +852,10 @@ def _get_or_create(
     session.add(instance)
     return instance, True
 
-def seed_users_and_subjects(database: SQLAlchemy, *, verbose: bool = False) -> dict[str, dict[str, int]]:
+
+def seed_users_and_subjects(
+    database: SQLAlchemy, *, verbose: bool = False
+) -> dict[str, dict[str, int]]:
     """Create core authentication users, subjects, and subject metrics."""
     if verbose:
         LOGGER.info("Seeding users and subjects...")
@@ -890,7 +892,9 @@ def seed_users_and_subjects(database: SQLAlchemy, *, verbose: bool = False) -> d
             if not isinstance(subject_key_value, str):
                 raise RuntimeError("Subject fixture missing key identifier")
             pseudonym = UUID(str(fixture["pseudonym"]))
-            subject = session.execute(select(Subject).filter_by(pseudonym=pseudonym)).scalar_one_or_none()
+            subject = session.execute(
+                select(Subject).filter_by(pseudonym=pseudonym)
+            ).scalar_one_or_none()
             created = False
             user_email = fixture.get("user_email")
             user = email_to_user.get(str(user_email).strip().lower()) if user_email else None
@@ -952,7 +956,10 @@ def seed_users_and_subjects(database: SQLAlchemy, *, verbose: bool = False) -> d
 
     return summary
 
-def seed_core_taxonomies(database: SQLAlchemy, *, verbose: bool = False) -> dict[str, dict[str, int]]:
+
+def seed_core_taxonomies(
+    database: SQLAlchemy, *, verbose: bool = False
+) -> dict[str, dict[str, int]]:
     """Populate exercise catalogs, tags, and associations."""
     if verbose:
         LOGGER.info("Seeding exercise catalog and tags...")
@@ -1027,6 +1034,7 @@ def seed_core_taxonomies(database: SQLAlchemy, *, verbose: bool = False) -> dict
 
     return summary
 
+
 def seed_routines_cycles_workouts(
     database: SQLAlchemy,
     *,
@@ -1042,7 +1050,9 @@ def seed_routines_cycles_workouts(
         subject_lookup: dict[str, Subject] = {}
         for fixture in SUBJECT_FIXTURES:
             pseudonym = UUID(str(fixture["pseudonym"]))
-            subject = session.execute(select(Subject).filter_by(pseudonym=pseudonym)).scalar_one_or_none()
+            subject = session.execute(
+                select(Subject).filter_by(pseudonym=pseudonym)
+            ).scalar_one_or_none()
             if subject is not None:
                 subject_lookup[fixture["key"]] = subject
         missing = [
@@ -1193,7 +1203,9 @@ def seed_routines_cycles_workouts(
             cycle.ended_on = cycle_data.get("ended_on")
             cycle.notes = cycle_data.get("notes")
             session.flush()
-            cycle_lookup[(cycle_data["subject_key"], cycle_data["routine_key"], cycle_data["cycle_number"])] = cycle
+            cycle_lookup[
+                (cycle_data["subject_key"], cycle_data["routine_key"], cycle_data["cycle_number"])
+            ] = cycle
             _touch(summary, "cycles", created)
 
         session_lookup: dict[tuple[str, datetime], WorkoutSession] = {}
@@ -1259,31 +1271,30 @@ def seed_routines_cycles_workouts(
                 session.add(log)
                 created = True
             session_key = log_data.get("session_key")
-            if isinstance(session_key, tuple) and len(session_key) == 2:
+            if (
+                isinstance(session_key, tuple)
+                and len(session_key) == 2
+                and isinstance(session_key[0], str)
+                and isinstance(session_key[1], datetime)
+            ):
                 workout = session_lookup.get((session_key[0], session_key[1]))
                 log.session_id = workout.id if workout is not None else None
             planned = log_data.get("planned_set")
             if isinstance(planned, dict):
-                planned_key_parts = (
-                    planned.get("routine_key"),
-                    planned.get("routine_day_index"),
-                    planned.get("exercise_slug"),
-                    planned.get("set_index"),
-                )
-                if all(part is not None for part in planned_key_parts):
-                    planned_key = cast(
-                        tuple[str, int, str, int],
-                        (
-                            planned_key_parts[0],
-                            planned_key_parts[1],
-                            planned_key_parts[2],
-                            planned_key_parts[3],
-                        ),
+                routine_key = planned.get("routine_key")
+                day_index = planned.get("routine_day_index")
+                exercise_slug = planned.get("exercise_slug")
+                set_index = planned.get("set_index")
+                if (
+                    isinstance(routine_key, str)
+                    and isinstance(day_index, int)
+                    and isinstance(exercise_slug, str)
+                    and isinstance(set_index, int)
+                ):
+                    planned_set = routine_set_lookup.get(
+                        (routine_key, day_index, exercise_slug, set_index)
                     )
-                    planned_set = routine_set_lookup.get(planned_key)
                     log.planned_set_id = planned_set.id if planned_set is not None else None
-                else:
-                    log.planned_set_id = None
             log.actual_weight_kg = log_data.get("actual_weight_kg")
             log.actual_reps = log_data.get("actual_reps")
             log.actual_rir = log_data.get("actual_rir")
@@ -1297,6 +1308,7 @@ def seed_routines_cycles_workouts(
             _touch(summary, "exercise_set_logs", created)
 
     return summary
+
 
 def run_all(database: SQLAlchemy, *, verbose: bool = False) -> dict[str, dict[str, int]]:
     """Run all seeders in the correct foreign-key order."""

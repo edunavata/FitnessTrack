@@ -6,7 +6,6 @@ Provide convenient access to :func:`app.factory.create_app` so callers can
 
 from __future__ import annotations
 
-
 import sys as _sys
 
 if __name__ != "app":
