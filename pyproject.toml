@@ -1,32 +1,20 @@
-[tool.ruff]
-# Rutas fuente: nuestro backend
-src = ["backend/app"]
-target-version = "py312"
+[tool.black]
 line-length = 100
-exclude = [
-  "backend/migrations",  # auto-generado por Alembic
-]
+target-version = ["py311"]
+
+[tool.ruff]
+src = ["backend/app"]
+target-version = "py311"
+line-length = 100
+exclude = ["backend/migrations"]
 
 [tool.ruff.lint]
-# Conjunto de reglas:
-# - E,F,W (pycodestyle/pyflakes)
-# - I (import order via ruff)
-# - UP (pyupgrade)
-# - B (bugbear)
-# - C4 (comprehensions)
-# - SIM (simplify)
-# - RUF (reglas propias de ruff)
 select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM", "RUF"]
-ignore = [
-  "E203",  # compat espacio antes de ':'; evita choques con formatters
-]
-
-# Ignora reglas concretas en ficheros auto-generados si fuese necesario
-[tool.ruff.lint.per-file-ignores]
-"backend/migrations/*" = ["E501", "F401", "F841"]
+# Ignora E501 para que la longitud la gobierne Black
+ignore = ["E203", "E501"]
 
 [tool.ruff.format]
-# Estilo consistente; sin comillas forzadas
+# Si usas Black como formateador principal, puedes omitir esta sección o dejarla (no interfiere).
 quote-style = "preserve"
 indent-style = "space"
 line-ending = "lf"
