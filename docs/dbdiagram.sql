@@ -220,22 +220,37 @@ Table exercise_secondary_muscles {
 }
 
 // ================== Rutinas (plantilla/plan) ==================
+// Nuevo: quién es el creador y si es pública
 Table routines {
   id                 int [pk, increment]
-  subject_id         int [not null]  // RGPD: ya no apunta a users
+  owner_subject_id   int [not null] // nuevo campo → propietario real
   name               varchar(120) [not null]
   description        text
   starts_on          date
   is_active          boolean [not null, default: true]
+  is_public          boolean [not null, default: false] // nuevo flag
   created_at         timestamptz [not null, default: `now()`]
   updated_at         timestamptz [not null, default: `now()`]
 
   indexes {
-    (subject_id, is_active) [name: 'ix_routines_subject_active']
-    (subject_id, name)      [unique, name: 'uq_routines_subject_name']
+    (owner_subject_id, is_active) [name: 'ix_routines_owner_active']
+    (owner_subject_id, name)      [unique, name: 'uq_routines_owner_name']
   }
 
-  Note: 'Mesocycle template (per subject).'
+  Note: 'Mesocycle template. Owned by one subject but can be shared (is_public=true).'
+}
+
+// Nuevo: relación N:M entre subjects y rutinas públicas/compartidas
+Table subject_routines {
+  subject_id  int [not null]
+  routine_id  int [not null]
+  saved_on    timestamptz [not null, default: `now()`]
+
+  indexes {
+    (subject_id, routine_id) [unique, name: 'uq_subject_routine']
+  }
+
+  Note: 'Subjects that have access to a routine (own or saved).'
 }
 
 Table routine_days {
@@ -299,11 +314,12 @@ Table routine_exercise_sets {
 }
 
 // ================== Ejecución (ciclos/sesiones/logs) ==================
+// Ajuste en cycles → uniqueness ahora debe ser respecto al sujeto
 Table cycles {
   id           int [pk, increment]
-  subject_id   int [not null] // RGPD: reemplaza user_id
+  subject_id   int [not null]
   routine_id   int [not null]
-  cycle_number int [not null, note: 'Sequential per routine (1..N)']
+  cycle_number int [not null, note: 'Sequential per subject+routine (1..N)']
 
   started_on   date
   ended_on     date
@@ -313,12 +329,12 @@ Table cycles {
   updated_at   timestamptz [not null, default: `now()`]
 
   indexes {
-    (routine_id, cycle_number) [unique, name: 'uq_cycles_routine_number']
-    (subject_id, started_on)   [name: 'ix_cycles_subject_started_on']
-    routine_id                 [name: 'ix_cycles_routine']
+    (subject_id, routine_id, cycle_number) [unique, name: 'uq_cycles_subject_routine_number']
+    (subject_id, started_on)               [name: 'ix_cycles_subject_started_on']
+    routine_id                             [name: 'ix_cycles_routine']
   }
 
-  Note: 'Execution instance of a routine (subject pass-through).'
+  Note: 'Execution instance of a routine by a subject. Supports shared routines.'
 }
 
 Table workout_sessions {
@@ -392,7 +408,7 @@ Ref: exercise_tags.exercise_id > exercises.id [delete: cascade]
 Ref: exercise_tags.tag_id > tags.id [delete: cascade]
 Ref: exercise_secondary_muscles.exercise_id > exercises.id [delete: cascade]
 
-Ref: routines.subject_id > subjects.id [delete: cascade]
+Ref: routines.owner_subject_id > subjects.id [delete: cascade]
 Ref: routine_days.routine_id > routines.id [delete: cascade]
 Ref: routine_day_exercises.routine_day_id > routine_days.id [delete: cascade]
 Ref: routine_day_exercises.exercise_id > exercises.id
@@ -409,3 +425,5 @@ Ref: exercise_set_logs.subject_id > subjects.id [delete: cascade]
 Ref: exercise_set_logs.exercise_id > exercises.id
 Ref: exercise_set_logs.session_id > workout_sessions.id [delete: cascade]
 Ref: exercise_set_logs.planned_set_id > routine_exercise_sets.id [delete: set null]
+Ref: subject_routines.subject_id > subjects.id [delete: cascade]
+Ref: subject_routines.routine_id > routines.id [delete: cascade]
