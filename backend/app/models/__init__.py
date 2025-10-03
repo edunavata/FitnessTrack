@@ -1,6 +1,12 @@
 from app.models.cycle import Cycle
-from app.models.exercise import Exercise, ExerciseAlias, ExerciseTag, Tag
+from app.models.exercise import (
+    Exercise,
+    ExerciseAlias,
+    ExerciseTag,
+    Tag,
+)
 from app.models.exercise_log import ExerciseSetLog
+from app.models.exercise_secondary import ExerciseSecondaryMuscle
 from app.models.routine import (
     Routine,
     RoutineDay,
@@ -12,19 +18,20 @@ from app.models.user import User
 from app.models.workout import WorkoutSession
 
 __all__ = [
-    "User",
+    "Cycle",
+    "Exercise",
+    "ExerciseAlias",
+    "ExerciseSecondaryMuscle",
+    "ExerciseSetLog",
+    "ExerciseTag",
     "Routine",
     "RoutineDay",
     "RoutineDayExercise",
     "RoutineExerciseSet",
-    "Exercise",
-    "ExerciseAlias",
-    "Tag",
-    "ExerciseTag",
-    "WorkoutSession",
-    "ExerciseSetLog",
-    "Cycle",
     "Subject",
-    "SubjectProfile",
     "SubjectBodyMetrics",
+    "SubjectProfile",
+    "Tag",
+    "User",
+    "WorkoutSession",
 ]
