@@ -79,7 +79,8 @@ def create_app(
     errors.init_app(app)
 
     # Shell/CLI
-    # from app.core import cli
-    # cli.init_app(app)
+    from app import cli as app_cli
+
+    app_cli.init_app(app)
 
     return app

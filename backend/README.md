@@ -27,3 +27,18 @@ Editar
 ## Health
 - `GET /api/v1/healthz`
 - `GET /api/v1/readiness`
+
+## Seeding
+Use the Flask CLI after exporting `FLASK_APP=wsgi:app`:
+
+```bash
+flask seed run
+```
+
+The command is idempotent and can be run repeatedly to ensure the development database contains reference data. To reset the schema (development/testing only) run:
+
+```bash
+flask seed fresh --yes
+```
+
+`seed fresh` drops and recreates all tables before seeding; omit `--yes` to receive an interactive confirmation prompt.
