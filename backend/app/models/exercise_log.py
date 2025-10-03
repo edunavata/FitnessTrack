@@ -36,15 +36,13 @@ class ExerciseSetLog(PKMixin, TimestampMixin, ReprMixin, db.Model):
     GDPR subject pattern
     --------------------
     Ownership is by ``subject_id`` (pseudonymous). Optional links to
-    :class:`WorkoutSession` and :class:`RoutineExerciseSet` must refer to the
-    *same* subject. Validation is performed via FK id-based validators so that
-    errors surface on ``flush``/``commit`` (not at attribute assignment time),
-    matching test expectations.
+    :class:`WorkoutSession` must refer to the *same* subject. Access to a
+    planned set from another subject's routine is allowed if that routine
+    is shared via ``subject_routines`` (validated at the application layer).
     """
 
     __tablename__ = "exercise_set_logs"
 
-    # --- Who and what (remapped user -> subject) ---
     subject_id: Mapped[int] = mapped_column(
         ForeignKey("subjects.id", ondelete="CASCADE"), nullable=False
     )
@@ -58,13 +56,11 @@ class ExerciseSetLog(PKMixin, TimestampMixin, ReprMixin, db.Model):
         ForeignKey("routine_exercise_sets.id", ondelete="SET NULL")
     )
 
-    # --- Timing & ordering ---
     performed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     set_index: Mapped[int] = mapped_column(Integer, nullable=False)
     is_warmup: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
     to_failure: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
 
-    # --- Actuals (performed) ---
     actual_weight_kg: Mapped[float | None] = mapped_column(Numeric(6, 2, asdecimal=False))
     actual_reps: Mapped[int | None] = mapped_column(Integer)
     actual_rir: Mapped[int | None] = mapped_column(Integer)
@@ -88,7 +84,6 @@ class ExerciseSetLog(PKMixin, TimestampMixin, ReprMixin, db.Model):
         Index("ix_esl_planned", "planned_set_id"),
     )
 
-    # --- Relationships ---
     subject: Mapped[Subject] = relationship(
         "Subject", back_populates="exercise_logs", passive_deletes=True, lazy="selectin"
     )
@@ -100,20 +95,11 @@ class ExerciseSetLog(PKMixin, TimestampMixin, ReprMixin, db.Model):
         "RoutineExerciseSet", passive_deletes=True, lazy="selectin"
     )
 
-    # ---------------- Validation (id-based; triggers on flush/commit) ----------------
+    # ---------------- Validation ----------------
     @validates("session_id")
     def _validate_subject_matches_session_id(self, key: str, value: int | None) -> int | None:
         """
         Ensure ``subject_id`` equals the related ``WorkoutSession.subject_id``.
-
-        This validator runs when ``session_id`` changes; SQLAlchemy resolves the FK
-        before/at flush time so mismatches raise on ``flush``/``commit``, not at
-        attribute assignment.
-
-        :param key: Field name (``"session_id"``).
-        :param value: The candidate session primary key.
-        :returns: The same value if valid.
-        :raises ValueError: If subjects differ.
         """
         if value is None:
             return value
@@ -121,48 +107,16 @@ class ExerciseSetLog(PKMixin, TimestampMixin, ReprMixin, db.Model):
 
         sess = db.session.get(WorkoutSession, value)
         if sess is None:
-            return value  # Let FK/DB constraints handle non-existent rows.
-
-        sess_sid = getattr(sess, "subject_id", None)
-        if self.subject_id is not None and sess_sid is not None and self.subject_id != sess_sid:
-            raise ValueError("ExerciseSetLog.subject_id must match WorkoutSession.subject_id")
-        return value
-
-    @validates("planned_set_id")
-    def _validate_subject_matches_planned_id(self, key: str, value: int | None) -> int | None:
-        """
-        Ensure ``subject_id`` equals the owning ``Routine.subject_id`` of the planned set.
-
-        :param key: Field name (``"planned_set_id"``).
-        :param value: The candidate planned set primary key.
-        :returns: The same value if valid.
-        :raises ValueError: If subjects differ.
-        """
-        if value is None:
             return value
-        from app.models.routine import RoutineExerciseSet
-
-        pes = db.session.get(RoutineExerciseSet, value)
-        if pes is None:
-            return value  # Let FK/DB constraints handle missing rows.
-
-        # Walk: PES -> RoutineDayExercise -> RoutineDay -> Routine -> subject_id
-        routine = getattr(
-            getattr(getattr(pes, "routine_day_exercise", None), "routine_day", None),
-            "routine",
-            None,
-        )
-        routine_subject_id = getattr(routine, "subject_id", None)
 
         if (
             self.subject_id is not None
-            and routine_subject_id is not None
-            and self.subject_id != routine_subject_id
+            and sess.subject_id is not None
+            and self.subject_id != sess.subject_id
         ):
-            raise ValueError("ExerciseSetLog.subject_id must match Routine.subject_id")
+            raise ValueError("ExerciseSetLog.subject_id must match WorkoutSession.subject_id")
         return value
 
-    # NOTE:
-    # We intentionally avoid relationship-level validators for `session` and
-    # `planned_set` because they fire on attribute assignment and would raise
-    # too early for the tests, which expect validation at `flush` time.
+    # ⚠️ No validation for planned_set_id anymore
+    # Access to another subject's routine is allowed if shared.
+    # This must be enforced at the application layer.

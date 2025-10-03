@@ -72,21 +72,24 @@ class TestExerciseSetLogModel:
             session.flush()
         session.rollback()
 
-    def test_planned_set_must_match_subject(self, session):
+    def test_planned_set_can_belong_to_other_subject(self, session):
+        """Now allowed: planned_set may come from another subject's routine if shared."""
         s1 = SubjectFactory()
         s2 = SubjectFactory()
 
-        routine = RoutineFactory(subject=s2)
+        routine = RoutineFactory(owner=s2)
         day = RoutineDayFactory(routine=routine)
         rde = RoutineDayExerciseFactory(routine_day=day)
         pes = RoutineExerciseSetFactory(routine_day_exercise=rde)
 
+        # esl subject != routine owner → now valid
         esl = ExerciseSetLogFactory.build(subject=s1, planned_set=pes)
 
         session.add(esl)
-        with pytest.raises(ValueError):
-            session.flush()
-        session.rollback()
+        session.commit()
+
+        assert esl.id is not None
+        assert esl.planned_set_id == pes.id
 
     def test_factory_with_session_assigns_unique_date(self, session):
         esl1 = ExerciseSetLogWithSessionFactory()

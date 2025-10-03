@@ -14,7 +14,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.extensions import db
 
@@ -28,23 +28,12 @@ if TYPE_CHECKING:
 
 class Cycle(PKMixin, TimestampMixin, ReprMixin, db.Model):
     """
-    Execution instance of a :class:`Routine`.
+    Execution instance of a :class:`Routine` by a subject.
 
-    Tracks a subject's pass through a routine (cycle_number 1..N) and can be
-    linked to many workout sessions for adherence/latency analytics.
-
-    Attributes
-    ----------
-    subject_id:
-        Owner subject. Duplicated from routine.subject_id for fast filtering/joins.
-    routine_id:
-        The routine being executed in this cycle.
-    cycle_number:
-        Sequential number for this routine per subject; starts at 1.
-    started_on, ended_on:
-        Optional dates to measure delays vs plan.
-    notes:
-        Free-form notes about the cycle.
+    Notes
+    -----
+    - A subject can execute both owned and shared routines.
+    - Cycle uniqueness is enforced per `(subject_id, routine_id, cycle_number)`.
     """
 
     __tablename__ = "cycles"
@@ -62,7 +51,9 @@ class Cycle(PKMixin, TimestampMixin, ReprMixin, db.Model):
     notes: Mapped[str | None] = mapped_column(Text)
 
     __table_args__ = (
-        UniqueConstraint("routine_id", "cycle_number", name="uq_cycles_routine_number"),
+        UniqueConstraint(
+            "subject_id", "routine_id", "cycle_number", name="uq_cycles_subject_routine_number"
+        ),
         CheckConstraint("cycle_number > 0", name="ck_cycles_number_positive"),
         Index("ix_cycles_subject_started_on", "subject_id", "started_on"),
         Index("ix_cycles_routine", "routine_id"),
@@ -81,30 +72,3 @@ class Cycle(PKMixin, TimestampMixin, ReprMixin, db.Model):
         passive_deletes=True,
         lazy="selectin",
     )
-
-    # --- Soft validator to keep subject consistency (Python-side) ---
-    @validates("routine_id")
-    def _validate_subject_matches_routine(self, key: str, rid: int | None) -> int | None:
-        """
-        Ensure cycle.subject_id equals routine.subject_id when both are present.
-
-        Validation is performed using the FK id so it triggers on flush/commit time,
-        not at relationship attribute assignment.
-        """
-        if rid is None:
-            return rid
-
-        from app.models.routine import Routine  # local import to avoid cycles
-
-        routine = db.session.get(Routine, rid)
-        if (
-            routine is not None
-            and getattr(routine, "subject_id", None) is not None
-            and getattr(self, "subject_id", None) is not None
-            and self.subject_id != routine.subject_id
-        ):
-            raise ValueError("cycle.subject_id must match routine.subject_id")
-        return rid
-
-    # OPTIONAL: if you currently have a relationship-level validator like:
-    # @validates("routine") ... -> remove it to avoid eager raises.

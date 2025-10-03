@@ -28,7 +28,7 @@ from .base import PKMixin, ReprMixin, TimestampMixin
 if TYPE_CHECKING:
     from .cycle import Cycle
     from .exercise_log import ExerciseSetLog
-    from .routine import Routine
+    from .routine import Routine, SubjectRoutine
     from .workout import WorkoutSession
 
 
@@ -39,13 +39,6 @@ class Subject(PKMixin, ReprMixin, TimestampMixin, db.Model):
     Holds a stable pseudonymous identifier and an optional 1:1 link to ``User``.
     Breaking the link (``user_id = NULL``) supports anonymization while
     preserving domain analytics.
-
-    Fields
-    ------
-    user_id : int | None
-        Optional 1:1 link to :class:`app.models.user.User`. Unique when present.
-    pseudonym : UUID
-        Stable pseudonymous UUID (unique).
     """
 
     __tablename__ = "subjects"
@@ -55,14 +48,9 @@ class Subject(PKMixin, ReprMixin, TimestampMixin, db.Model):
     )
     pseudonym: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False, default=uuid4)
 
-    user = relationship(
-        "User",
-        uselist=False,
-        backref="subject",
-        passive_deletes=True,
-    )
+    # ---------------- Relationships ----------------
+    user = relationship("User", uselist=False, backref="subject", passive_deletes=True)
 
-    # 1:1 profile; one-to-many body metrics
     profile = relationship(
         "SubjectProfile",
         uselist=False,
@@ -77,14 +65,32 @@ class Subject(PKMixin, ReprMixin, TimestampMixin, db.Model):
         passive_deletes=True,
     )
 
-    # other relationships (e.g., routines)
-    routines: Mapped[list[Routine]] = relationship(
-        "Routine",
+    # 🔹 Nueva relación principal: SubjectRoutine
+    subject_routines: Mapped[list[SubjectRoutine]] = relationship(
+        "SubjectRoutine",
         back_populates="subject",
         cascade="all, delete-orphan",
         passive_deletes=True,
         lazy="selectin",
     )
+
+    # 🔹 Atajo de solo lectura a rutinas
+    saved_routines: Mapped[list[Routine]] = relationship(
+        "Routine",
+        secondary="subject_routines",
+        viewonly=True,
+        lazy="selectin",
+    )
+
+    # 🔹 Rutinas creadas por este subject (propietario)
+    owned_routines: Mapped[list[Routine]] = relationship(
+        "Routine",
+        back_populates="owner",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        lazy="selectin",
+    )
+
     cycles: Mapped[list[Cycle]] = relationship(
         "Cycle",
         back_populates="subject",

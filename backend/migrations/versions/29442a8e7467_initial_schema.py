@@ -1,8 +1,8 @@
 """initial schema
 
-Revision ID: c53711a34cee
+Revision ID: 29442a8e7467
 Revises:
-Create Date: 2025-10-03 00:55:24.883671
+Create Date: 2025-10-03 17:30:17.033255
 
 """
 
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = "c53711a34cee"
+revision = "29442a8e7467"
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -195,6 +195,24 @@ def upgrade():
         sa.UniqueConstraint("exercise_id", "alias", name="uq_exercise_alias"),
     )
     op.create_table(
+        "exercise_secondary_muscles",
+        sa.Column("exercise_id", sa.Integer(), nullable=False),
+        sa.Column("muscle", sa.String(length=50), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["exercise_id"],
+            ["exercises.id"],
+            name=op.f("fk_exercise_secondary_muscles_exercise_id_exercises"),
+            ondelete="CASCADE",
+        ),
+        sa.PrimaryKeyConstraint(
+            "exercise_id", "muscle", name=op.f("pk_exercise_secondary_muscles")
+        ),
+        sa.UniqueConstraint("exercise_id", "muscle", name="uq_exercise_muscle"),
+    )
+    with op.batch_alter_table("exercise_secondary_muscles", schema=None) as batch_op:
+        batch_op.create_index("ix_exercise_muscle", ["exercise_id", "muscle"], unique=False)
+
+    op.create_table(
         "exercise_tags",
         sa.Column("exercise_id", sa.Integer(), nullable=False),
         sa.Column("tag_id", sa.Integer(), nullable=False),
@@ -253,11 +271,10 @@ def upgrade():
 
     op.create_table(
         "routines",
-        sa.Column("subject_id", sa.Integer(), nullable=False),
+        sa.Column("owner_subject_id", sa.Integer(), nullable=False),
         sa.Column("name", sa.String(length=120), nullable=False),
         sa.Column("description", sa.Text(), nullable=True),
-        sa.Column("starts_on", sa.Date(), nullable=True),
-        sa.Column("is_active", sa.Boolean(), server_default="true", nullable=False),
+        sa.Column("is_public", sa.Boolean(), server_default="false", nullable=False),
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column(
             "created_at",
@@ -272,25 +289,20 @@ def upgrade():
             nullable=False,
         ),
         sa.ForeignKeyConstraint(
-            ["subject_id"],
+            ["owner_subject_id"],
             ["subjects.id"],
-            name=op.f("fk_routines_subject_id_subjects"),
+            name=op.f("fk_routines_owner_subject_id_subjects"),
             ondelete="CASCADE",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_routines")),
-        sa.UniqueConstraint("subject_id", "name", name="uq_routines_subject_name"),
+        sa.UniqueConstraint("owner_subject_id", "name", name="uq_routines_owner_name"),
     )
-    with op.batch_alter_table("routines", schema=None) as batch_op:
-        batch_op.create_index(
-            "ix_routines_subject_active", ["subject_id", "is_active"], unique=False
-        )
-
     op.create_table(
         "subject_body_metrics",
         sa.Column("subject_id", sa.Integer(), nullable=False),
         sa.Column("measured_on", sa.Date(), nullable=False),
-        sa.Column("weight_kg", sa.Numeric(precision=5, scale=2), nullable=True),
-        sa.Column("bodyfat_pct", sa.Numeric(precision=4, scale=1), nullable=True),
+        sa.Column("weight_kg", sa.Numeric(precision=5, scale=2, asdecimal=False), nullable=True),
+        sa.Column("bodyfat_pct", sa.Numeric(precision=4, scale=1, asdecimal=False), nullable=True),
         sa.Column("resting_hr", sa.Integer(), nullable=True),
         sa.Column("notes", sa.Text(), nullable=True),
         sa.Column("id", sa.Integer(), nullable=False),
@@ -305,6 +317,18 @@ def upgrade():
             sa.DateTime(timezone=True),
             server_default=sa.text("(CURRENT_TIMESTAMP)"),
             nullable=False,
+        ),
+        sa.CheckConstraint(
+            "(bodyfat_pct IS NULL) OR (bodyfat_pct >= 0 AND bodyfat_pct <= 100)",
+            name=op.f("ck_subject_body_metrics_ck_sbm_bodyfat_pct_range"),
+        ),
+        sa.CheckConstraint(
+            "(resting_hr IS NULL) OR (resting_hr > 0)",
+            name=op.f("ck_subject_body_metrics_ck_sbm_resting_hr_positive"),
+        ),
+        sa.CheckConstraint(
+            "(weight_kg IS NULL) OR (weight_kg >= 0)",
+            name=op.f("ck_subject_body_metrics_ck_sbm_weight_nonnegative"),
         ),
         sa.ForeignKeyConstraint(
             ["subject_id"],
@@ -350,6 +374,18 @@ def upgrade():
             server_default=sa.text("(CURRENT_TIMESTAMP)"),
             nullable=False,
         ),
+        sa.CheckConstraint(
+            "(birth_year IS NULL) OR (birth_year >= 1900)",
+            name=op.f("ck_subject_profiles_ck_subject_profiles_birth_year_range"),
+        ),
+        sa.CheckConstraint(
+            "(dominant_hand IS NULL) OR (length(dominant_hand) <= 10)",
+            name=op.f("ck_subject_profiles_ck_subject_profiles_dominant_hand_len"),
+        ),
+        sa.CheckConstraint(
+            "(height_cm IS NULL) OR (height_cm > 0)",
+            name=op.f("ck_subject_profiles_ck_subject_profiles_height_positive"),
+        ),
         sa.ForeignKeyConstraint(
             ["subject_id"],
             ["subjects.id"],
@@ -358,7 +394,6 @@ def upgrade():
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_subject_profiles")),
         sa.UniqueConstraint("subject_id", name="uq_subject_profiles_subject"),
-        sa.UniqueConstraint("subject_id", name=op.f("uq_subject_profiles_subject_id")),
     )
     with op.batch_alter_table("subject_profiles", schema=None) as batch_op:
         batch_op.create_index("ix_subject_profiles_subject_id", ["subject_id"], unique=False)
@@ -398,7 +433,9 @@ def upgrade():
             ondelete="CASCADE",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_cycles")),
-        sa.UniqueConstraint("routine_id", "cycle_number", name="uq_cycles_routine_number"),
+        sa.UniqueConstraint(
+            "subject_id", "routine_id", "cycle_number", name="uq_cycles_subject_routine_number"
+        ),
     )
     with op.batch_alter_table("cycles", schema=None) as batch_op:
         batch_op.create_index("ix_cycles_routine", ["routine_id"], unique=False)
@@ -434,6 +471,45 @@ def upgrade():
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_routine_days")),
         sa.UniqueConstraint("routine_id", "day_index", name="uq_routine_days_routine_day_index"),
+    )
+    op.create_table(
+        "subject_routines",
+        sa.Column("subject_id", sa.Integer(), nullable=False),
+        sa.Column("routine_id", sa.Integer(), nullable=False),
+        sa.Column(
+            "saved_on",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("(CURRENT_TIMESTAMP)"),
+            nullable=False,
+        ),
+        sa.Column("is_active", sa.Boolean(), server_default="false", nullable=False),
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("(CURRENT_TIMESTAMP)"),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("(CURRENT_TIMESTAMP)"),
+            nullable=False,
+        ),
+        sa.ForeignKeyConstraint(
+            ["routine_id"],
+            ["routines.id"],
+            name=op.f("fk_subject_routines_routine_id_routines"),
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["subject_id"],
+            ["subjects.id"],
+            name=op.f("fk_subject_routines_subject_id_subjects"),
+            ondelete="CASCADE",
+        ),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_subject_routines")),
+        sa.UniqueConstraint("subject_id", "routine_id", name="uq_subject_routine"),
     )
     op.create_table(
         "routine_day_exercises",
@@ -477,7 +553,7 @@ def upgrade():
     op.create_table(
         "workout_sessions",
         sa.Column("subject_id", sa.Integer(), nullable=False),
-        sa.Column("workout_date", sa.Date(), nullable=False),
+        sa.Column("workout_date", sa.DateTime(timezone=True), nullable=False),
         sa.Column(
             "status",
             sa.Enum("PENDING", "COMPLETED", name="workout_status"),
@@ -488,7 +564,9 @@ def upgrade():
         sa.Column("cycle_id", sa.Integer(), nullable=True),
         sa.Column("location", sa.String(length=120), nullable=True),
         sa.Column("perceived_fatigue", sa.Integer(), nullable=True),
-        sa.Column("bodyweight_kg", sa.Numeric(precision=5, scale=2), nullable=True),
+        sa.Column(
+            "bodyweight_kg", sa.Numeric(precision=5, scale=2, asdecimal=False), nullable=True
+        ),
         sa.Column("notes", sa.Text(), nullable=True),
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column(
@@ -531,10 +609,12 @@ def upgrade():
         sa.Column("set_index", sa.Integer(), nullable=False),
         sa.Column("is_warmup", sa.Boolean(), server_default="false", nullable=False),
         sa.Column("to_failure", sa.Boolean(), server_default="false", nullable=False),
-        sa.Column("target_weight_kg", sa.Numeric(precision=6, scale=2), nullable=True),
+        sa.Column(
+            "target_weight_kg", sa.Numeric(precision=6, scale=2, asdecimal=False), nullable=True
+        ),
         sa.Column("target_reps", sa.Integer(), nullable=True),
         sa.Column("target_rir", sa.Integer(), nullable=True),
-        sa.Column("target_rpe", sa.Numeric(precision=3, scale=1), nullable=True),
+        sa.Column("target_rpe", sa.Numeric(precision=3, scale=1, asdecimal=False), nullable=True),
         sa.Column("target_tempo", sa.String(length=15), nullable=True),
         sa.Column("target_rest_s", sa.Integer(), nullable=True),
         sa.Column("notes", sa.Text(), nullable=True),
@@ -570,10 +650,12 @@ def upgrade():
         sa.Column("set_index", sa.Integer(), nullable=False),
         sa.Column("is_warmup", sa.Boolean(), server_default="false", nullable=False),
         sa.Column("to_failure", sa.Boolean(), server_default="false", nullable=False),
-        sa.Column("actual_weight_kg", sa.Numeric(precision=6, scale=2), nullable=True),
+        sa.Column(
+            "actual_weight_kg", sa.Numeric(precision=6, scale=2, asdecimal=False), nullable=True
+        ),
         sa.Column("actual_reps", sa.Integer(), nullable=True),
         sa.Column("actual_rir", sa.Integer(), nullable=True),
-        sa.Column("actual_rpe", sa.Numeric(precision=3, scale=1), nullable=True),
+        sa.Column("actual_rpe", sa.Numeric(precision=3, scale=1, asdecimal=False), nullable=True),
         sa.Column("actual_tempo", sa.String(length=15), nullable=True),
         sa.Column("actual_rest_s", sa.Integer(), nullable=True),
         sa.Column("notes", sa.Text(), nullable=True),
@@ -651,6 +733,7 @@ def downgrade():
         batch_op.drop_index("ix_rde_day_exercise")
 
     op.drop_table("routine_day_exercises")
+    op.drop_table("subject_routines")
     op.drop_table("routine_days")
     with op.batch_alter_table("cycles", schema=None) as batch_op:
         batch_op.drop_index("ix_cycles_subject_started_on")
@@ -666,9 +749,6 @@ def downgrade():
         batch_op.drop_index("ix_sbm_measured_on")
 
     op.drop_table("subject_body_metrics")
-    with op.batch_alter_table("routines", schema=None) as batch_op:
-        batch_op.drop_index("ix_routines_subject_active")
-
     op.drop_table("routines")
     with op.batch_alter_table("subjects", schema=None) as batch_op:
         batch_op.drop_index("ix_subjects_user_id")
@@ -676,6 +756,10 @@ def downgrade():
 
     op.drop_table("subjects")
     op.drop_table("exercise_tags")
+    with op.batch_alter_table("exercise_secondary_muscles", schema=None) as batch_op:
+        batch_op.drop_index("ix_exercise_muscle")
+
+    op.drop_table("exercise_secondary_muscles")
     op.drop_table("exercise_aliases")
     with op.batch_alter_table("users", schema=None) as batch_op:
         batch_op.drop_index("ix_users_username")

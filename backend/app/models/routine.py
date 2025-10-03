@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
@@ -23,56 +24,80 @@ from .base import PKMixin, ReprMixin, TimestampMixin
 if TYPE_CHECKING:
     from .cycle import Cycle
     from .exercise import Exercise
-    from .subject import Subject  # ← remapped from User to Subject
+    from .subject import Subject
 
 
 class Routine(PKMixin, TimestampMixin, ReprMixin, db.Model):
     """
-    Mesocycle template owned by a subject (GDPR subject pattern).
+    Mesocycle template owned by a subject but shareable with others.
 
     Notes
     -----
-    This entity is pseudonymous by design. All ownership references point to
-    :class:`app.models.subject.Subject` instead of ``User``.
+    - `owner_subject_id`: Subject who created the routine.
+    - `is_public`: If True, others can save the routine via `SubjectRoutine`.
+    - Access control:
+        * Owner can modify.
+        * Non-owners can only execute cycles if they saved it.
     """
 
     __tablename__ = "routines"
 
-    # Remapped: user_id → subject_id
-    subject_id: Mapped[int] = mapped_column(
+    owner_subject_id: Mapped[int] = mapped_column(
         ForeignKey("subjects.id", ondelete="CASCADE"), nullable=False
     )
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
+    is_public: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
 
-    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
-
-    __table_args__ = (
-        Index("ix_routines_subject_active", "subject_id", "is_active"),
-        UniqueConstraint("subject_id", "name", name="uq_routines_subject_name"),
-    )
+    __table_args__ = (UniqueConstraint("owner_subject_id", "name", name="uq_routines_owner_name"),)
 
     # Relationships
-    subject: Mapped[Subject] = relationship(  # ← back_populates subject
+    owner: Mapped[Subject] = relationship(
         "Subject",
-        back_populates="routines",
+        back_populates="owned_routines",
+        foreign_keys=[owner_subject_id],
         passive_deletes=True,
+        lazy="selectin",
+    )
+    subject_routines: Mapped[list[SubjectRoutine]] = relationship(
+        "SubjectRoutine",
+        back_populates="routine",
+        cascade="all, delete-orphan",
         lazy="selectin",
     )
     days: Mapped[list[RoutineDay]] = relationship(
-        "RoutineDay",
-        back_populates="routine",
-        cascade="all, delete-orphan",
-        passive_deletes=True,
-        lazy="selectin",
+        "RoutineDay", back_populates="routine", cascade="all, delete-orphan", lazy="selectin"
     )
     cycles: Mapped[list[Cycle]] = relationship(
-        "Cycle",
-        back_populates="routine",
-        cascade="all, delete-orphan",
-        passive_deletes=True,
-        lazy="selectin",
+        "Cycle", back_populates="routine", cascade="all, delete-orphan", lazy="selectin"
     )
+
+
+class SubjectRoutine(PKMixin, TimestampMixin, ReprMixin, db.Model):
+    """
+    Association object linking subjects <-> routines.
+
+    Tracks when a subject saved a routine and whether it's active for them.
+    """
+
+    __tablename__ = "subject_routines"
+
+    subject_id: Mapped[int] = mapped_column(
+        ForeignKey("subjects.id", ondelete="CASCADE"), nullable=False
+    )
+    routine_id: Mapped[int] = mapped_column(
+        ForeignKey("routines.id", ondelete="CASCADE"), nullable=False
+    )
+    saved_on: Mapped[datetime] = mapped_column(
+        db.DateTime(timezone=True), server_default=db.func.now(), nullable=False
+    )
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+
+    __table_args__ = (UniqueConstraint("subject_id", "routine_id", name="uq_subject_routine"),)
+
+    # Relationships
+    subject: Mapped[Subject] = relationship("Subject", back_populates="subject_routines")
+    routine: Mapped[Routine] = relationship("Routine", back_populates="subject_routines")
 
 
 class RoutineDay(PKMixin, TimestampMixin, ReprMixin, db.Model):

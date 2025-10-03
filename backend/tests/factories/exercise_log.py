@@ -40,7 +40,7 @@ class ExerciseSetLogFactory(BaseFactory):
     # Planned set chain (safe to generate by default; no unique date constraint)
     @factory.lazy_attribute
     def planned_set(self):
-        routine = RoutineFactory(subject=self.subject)
+        routine = RoutineFactory(owner=self.subject)
         day = RoutineDayFactory(routine=routine)
         rde = RoutineDayExerciseFactory(routine_day=day)
         return RoutineExerciseSetFactory(routine_day_exercise=rde)

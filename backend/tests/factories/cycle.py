@@ -1,3 +1,5 @@
+"""Factory Boy definition for :class:`app.models.cycle.Cycle`."""
+
 from __future__ import annotations
 
 from app.models.cycle import Cycle
@@ -16,12 +18,13 @@ class CycleFactory(BaseFactory):
 
     id = None
 
-    # Let callers pass a subject; default to a fresh one
+    # Subject executing the cycle
     subject = factory.SubFactory(SubjectFactory)
     subject_id = factory.SelfAttribute("subject.id")
 
-    # Ensure the Routine belongs to the SAME subject as the Cycle
-    routine = factory.LazyAttribute(lambda o: RoutineFactory(subject=o.subject))
+    # Routine: ensure it belongs to the same subject by default
+    routine = factory.LazyAttribute(lambda o: RoutineFactory(owner=o.subject))
+    routine_id = factory.SelfAttribute("routine.id")
 
     cycle_number = factory.Sequence(lambda n: n + 1)
     started_on = None

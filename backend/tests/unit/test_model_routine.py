@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 import pytest
+
+# ✅ import the ORM model, not the raw table
+from app.models.routine import SubjectRoutine
 from sqlalchemy.exc import IntegrityError
 from tests.factories.routine import (
     RoutineDayExerciseFactory,
     RoutineDayFactory,
     RoutineExerciseSetFactory,
     RoutineFactory,
+    SubjectRoutineFactory,  # ✅ use the model-based factory
 )
 from tests.factories.subject import SubjectFactory
 
@@ -19,16 +23,16 @@ class TestRoutineModel:
         session.add(r)
         session.commit()
         assert r.id is not None
-        assert r.subject is not None  # ← was user
-        assert r.is_active is True
+        assert r.owner is not None
+        assert r.is_public is False
 
-    def test_unique_routine_name_per_subject(self, session):
+    def test_unique_routine_name_per_owner(self, session):
         s = SubjectFactory()
-        r1 = RoutineFactory(subject=s, name="Hypertrophy")
+        r1 = RoutineFactory(owner=s, name="Hypertrophy")
         session.add(r1)
         session.commit()
 
-        r2 = RoutineFactory.build(subject=s, name="Hypertrophy")
+        r2 = RoutineFactory.build(owner=s, name="Hypertrophy")
         session.add(r2)
         with pytest.raises(IntegrityError):
             session.flush()
@@ -80,4 +84,37 @@ class TestRoutineModel:
         assert d in r.days
         assert ex in d.exercises
         assert s in ex.sets
-        assert r.subject is not None  # ← was user
+        assert r.owner is not None
+
+    # --- SubjectRoutine tests (ORM model) ---
+    def test_subject_can_save_routine(self, session):
+        sr = SubjectRoutineFactory()
+        session.commit()
+
+        assert sr.id is not None
+        assert sr.is_active is False
+        assert isinstance(sr, SubjectRoutine)
+        assert sr.subject_id == sr.subject.id
+        assert sr.routine_id == sr.routine.id
+
+    def test_unique_subject_routine_constraint(self, session):
+        sr1 = SubjectRoutineFactory()
+        session.commit()
+
+        with pytest.raises(IntegrityError):
+            # duplicate subject/routine
+            SubjectRoutineFactory(subject=sr1.subject, routine=sr1.routine)
+            session.commit()
+
+    def test_subject_can_set_routine_active(self, session):
+        sr = SubjectRoutineFactory()
+        session.commit()
+
+        # ✅ Update via ORM, no raw table ops
+        sr.is_active = True
+        session.add(sr)
+        session.commit()
+
+        # Refresh and assert
+        session.refresh(sr)
+        assert sr.is_active is True

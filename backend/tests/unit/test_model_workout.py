@@ -42,7 +42,8 @@ class TestWorkoutSessionModel:
         session.commit()
 
         assert ws.routine_day is not None
-        assert ws.routine_day.routine.subject_id == ws.subject_id
+        # La rutina puede ser de cualquier owner, ya no se valida por sujeto
+        assert ws.routine_day.routine is not None
 
     def test_cycle_link_requires_same_subject(self, session):
         s = SubjectFactory()
@@ -69,16 +70,18 @@ class TestWorkoutSessionModel:
             session.flush()
         session.rollback()
 
-    def test_routine_day_link_raises_on_different_subject(self, session):
-        with pytest.raises(ValueError):
-            s1 = SubjectFactory()
-            s2 = SubjectFactory()
+    def test_routine_day_can_belong_to_other_subject(self, session):
+        """Now allowed: routine_day may come from another subject's routine (shared)."""
+        s1 = SubjectFactory()
+        s2 = SubjectFactory()
 
-            routine = RoutineFactory(subject=s2)
-            rd = RoutineDayFactory(routine=routine)
+        routine = RoutineFactory(owner=s2)
+        rd = RoutineDayFactory(routine=routine)
 
-            ws = WorkoutSessionFactory.build(subject=s1, routine_day=rd)
-            session.add(ws)
+        ws = WorkoutSessionFactory.build(subject=s1, routine_day=rd)
+        session.add(ws)
+        session.commit()
 
-            session.flush()
-        session.rollback()
+        assert ws.id is not None
+        assert ws.routine_day_id == rd.id
+        assert ws.subject_id != rd.routine.owner_subject_id

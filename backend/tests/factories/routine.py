@@ -7,12 +7,13 @@ from app.models.routine import (
     RoutineDay,
     RoutineDayExercise,
     RoutineExerciseSet,
+    SubjectRoutine,
 )
 
 import factory
 from tests.factories import BaseFactory
 from tests.factories.exercise import ExerciseFactory
-from tests.factories.subject import SubjectFactory  # ← switch to Subject
+from tests.factories.subject import SubjectFactory
 
 
 class RoutineFactory(BaseFactory):
@@ -22,11 +23,14 @@ class RoutineFactory(BaseFactory):
         model = Routine
 
     id = None
-    subject = factory.SubFactory(SubjectFactory)  # ← was UserFactory
-    subject_id = factory.SelfAttribute("subject.id")
+
+    # Owner subject
+    owner = factory.SubFactory(SubjectFactory)
+    owner_subject_id = factory.SelfAttribute("owner.id")
+
     name = factory.Sequence(lambda n: f"Routine {n}")
     description = "Basic routine"
-    is_active = True
+    is_public = False  # default: routines are private
 
 
 class RoutineDayFactory(BaseFactory):
@@ -66,3 +70,17 @@ class RoutineExerciseSetFactory(BaseFactory):
     is_warmup = False
     to_failure = False
     target_reps = 10
+
+
+class SubjectRoutineFactory(BaseFactory):
+    """Build persisted :class:`app.models.routine.SubjectRoutine` instances."""
+
+    class Meta:
+        model = SubjectRoutine
+
+    id = None
+    subject = factory.SubFactory(SubjectFactory)
+    routine = factory.SubFactory(RoutineFactory, owner=factory.SelfAttribute("..subject"))
+
+    # Campos adicionales de la relación
+    is_active = False

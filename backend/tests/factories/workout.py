@@ -29,8 +29,8 @@ class WorkoutSessionFactory(BaseFactory):
     bodyweight_kg = 80.0
     notes = "Good session"
 
-    # By default, attach a RoutineDay that belongs to the same subject (via Routine)
+    # By default, attach a RoutineDay owned by the same subject (safe case)
     @factory.lazy_attribute
     def routine_day(self):
-        routine = RoutineFactory(subject=self.subject)
+        routine = RoutineFactory(owner=self.subject)
         return RoutineDayFactory(routine=routine)

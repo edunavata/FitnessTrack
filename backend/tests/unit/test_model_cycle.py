@@ -21,21 +21,22 @@ class TestCycleModel:
         assert c.routine is not None
         assert c.cycle_number == 1
 
-    def test_unique_cycle_number_per_routine(self, session):
+    def test_unique_cycle_number_per_subject_and_routine(self, session):
         c1 = CycleFactory(cycle_number=1)
         session.add(c1)
         session.commit()
 
+        # mismo subject y misma rutina → debe violar constraint
         c2 = CycleFactory.build(routine=c1.routine, subject=c1.subject, cycle_number=1)
         session.add(c2)
         with pytest.raises(IntegrityError):
             session.flush()
         session.rollback()
 
-    def test_same_cycle_number_allowed_on_other_routine(self, session):
+    def test_same_cycle_number_allowed_for_other_routine(self, session):
         s = SubjectFactory()
-        r1 = RoutineFactory(subject=s, name="R1")
-        r2 = RoutineFactory(subject=s, name="R2")
+        r1 = RoutineFactory(owner=s, name="R1")
+        r2 = RoutineFactory(owner=s, name="R2")
         c1 = CycleFactory(routine=r1, subject=s, cycle_number=1)
         c2 = CycleFactory(routine=r2, subject=s, cycle_number=1)
 
@@ -44,6 +45,21 @@ class TestCycleModel:
 
         assert c1.id != c2.id
         assert c1.subject_id == c2.subject_id  # same subject across routines
+
+    def test_same_cycle_number_allowed_for_other_subject(self, session):
+        r = RoutineFactory()  # rutina de un owner cualquiera
+        s1 = SubjectFactory()
+        s2 = SubjectFactory()
+
+        c1 = CycleFactory(routine=r, subject=s1, cycle_number=1)
+        c2 = CycleFactory(routine=r, subject=s2, cycle_number=1)
+
+        session.add_all([c1, c2])
+        session.commit()
+
+        assert c1.id != c2.id
+        assert c1.routine_id == c2.routine_id
+        assert c1.subject_id != c2.subject_id
 
     def test_workout_session_can_link_to_cycle_if_same_subject(self, session):
         c = CycleFactory()
