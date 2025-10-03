@@ -5,6 +5,7 @@
 #
 # NOTA: Puedes actualizar las versiones (rev) cuando quieras.
 minimum_pre_commit_version: "3.5.0"
+
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
@@ -19,17 +20,20 @@ repos:
       - id: debug-statements
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    # Actualiza a la última estable cuando quieras
     rev: v0.6.5
     hooks:
       - id: ruff
         name: ruff (lint)
         args: ["--fix", "--exit-non-zero-on-fix"]
-        # Aplica sólo a backend por ahora (puedes abrirlo a todo el repo si quieres)
         files: ^backend/
-      - id: ruff-format
-        name: ruff (format)
-        files: ^backend/
+
+  - repo: https://github.com/psf/black
+    rev: 24.8.0
+    hooks:
+      - id: black
+        name: black (format)
+        language_version: python3
+        args: ["--line-length=100"]
 
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.10.0
@@ -46,7 +50,7 @@ repos:
     hooks:
       - id: bandit
         name: bandit (app only)
-        args: [ "-r", "backend/app", "-q" ]  # <- solo app, excluye tests
+        args: ["-r", "backend/app", "-q"]  # <- solo app, excluye tests
         pass_filenames: false
 
   - repo: https://github.com/python-jsonschema/check-jsonschema
