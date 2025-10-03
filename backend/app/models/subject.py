@@ -240,8 +240,8 @@ class SubjectBodyMetrics(PKMixin, ReprMixin, TimestampMixin, db.Model):
     )
     measured_on: Mapped[date] = mapped_column(Date, nullable=False)
 
-    weight_kg: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
-    bodyfat_pct: Mapped[float | None] = mapped_column(Numeric(4, 1), nullable=True)
+    weight_kg: Mapped[float | None] = mapped_column(Numeric(5, 2, asdecimal=False), nullable=True)
+    bodyfat_pct: Mapped[float | None] = mapped_column(Numeric(4, 1, asdecimal=False), nullable=True)
     resting_hr: Mapped[int | None] = mapped_column(Integer, nullable=True)
     notes: Mapped[str | None] = mapped_column(db.Text, nullable=True)
 

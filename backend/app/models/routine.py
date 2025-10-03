@@ -149,10 +149,10 @@ class RoutineExerciseSet(PKMixin, TimestampMixin, ReprMixin, db.Model):
     is_warmup: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
     to_failure: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
 
-    target_weight_kg: Mapped[float | None] = mapped_column(Numeric(6, 2))
+    target_weight_kg: Mapped[float | None] = mapped_column(Numeric(6, 2, asdecimal=False))
     target_reps: Mapped[int | None] = mapped_column(Integer)
     target_rir: Mapped[int | None] = mapped_column(Integer)
-    target_rpe: Mapped[float | None] = mapped_column(Numeric(3, 1))
+    target_rpe: Mapped[float | None] = mapped_column(Numeric(3, 1, asdecimal=False))
     target_tempo: Mapped[str | None] = mapped_column(String(15))
     target_rest_s: Mapped[int | None] = mapped_column(Integer)
 
