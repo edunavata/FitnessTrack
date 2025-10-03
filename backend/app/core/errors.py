@@ -9,6 +9,7 @@ from uuid import uuid4
 
 from flask import Flask, Response, g, jsonify, request
 from werkzeug.exceptions import HTTPException
+from psycopg2 import errorcodes as pgcodes
 
 # Optional integrations (guarded imports)
 try:
@@ -95,16 +96,19 @@ def _as_problem(
     return problem
 
 
-def _problem_response(problem: dict[str, Any]) -> Response:
-    """
-    Return a Flask response with ``application/problem+json`` media type.
-
-    :param problem: Problem details payload.
-    :returns: Flask JSON Response with proper MIME type.
-    :rtype: flask.Response
-    """
+def _problem_response(
+    problem: dict[str, Any], *, status: int, retry_after: int | None = None
+) -> Response:
     resp = jsonify(problem)
-    resp.mimetype = "application/problem+json"
+    resp.status_code = status
+    resp.mimetype = "application/problem+json; charset=utf-8"
+    # Avoid caching error responses
+    resp.headers["Cache-Control"] = "no-store"
+    if retry_after is not None and status in (
+        HTTPStatus.TOO_MANY_REQUESTS,
+        HTTPStatus.SERVICE_UNAVAILABLE,
+    ):
+        resp.headers["Retry-After"] = str(retry_after)  # seconds
     return resp
 
 
@@ -249,54 +253,51 @@ def init_app(app: Flask) -> None:
 
         @app.errorhandler(MarshmallowValidationError)
         def handle_validation_error(err: Any):
-            # err.messages is a dict[str, list[str]] typically
+            errors = getattr(err, "messages", {}) or {}
+            invalid_params = [
+                {"name": field, "reason": "; ".join(map(str, msgs))}
+                for field, msgs in errors.items()
+            ]
             problem = _as_problem(
                 status=HTTPStatus.UNPROCESSABLE_ENTITY,
                 code="validation_error",
                 message="Validation failed",
-                details={
-                    "errors": getattr(err, "messages", None)
-                    or getattr(err, "normalized_messages", lambda: None)()
-                },
+                details={"invalid_params": invalid_params},
             )
             log.warning("ValidationError: request_id=%s", problem.get("request_id"))
-            return _problem_response(problem), HTTPStatus.UNPROCESSABLE_ENTITY
+            return _problem_response(problem, status=HTTPStatus.UNPROCESSABLE_ENTITY)
 
     # Optional: database errors (SQLAlchemy)
     if IntegrityError is not None:
 
         @app.errorhandler(IntegrityError)
         def handle_integrity_error(err: Any):
-            # Do not leak raw DB error to clients
-            problem = _as_problem(
-                status=HTTPStatus.CONFLICT,
-                code="conflict",
-                message="Resource conflict",
-            )
-            # Log root cause with traceback for operators
-            log.error(
-                "IntegrityError: request_id=%s",
-                problem.get("request_id"),
-                exc_info=True,
-            )
-            return _problem_response(problem), HTTPStatus.CONFLICT
+            status = HTTPStatus.CONFLICT
+            code = "conflict"
+            if getattr(err, "orig", None) is not None:
+                pgcode = getattr(err.orig, "pgcode", None)
+                if pgcode == pgcodes.UNIQUE_VIOLATION:
+                    code = "unique_violation"
+                    status = HTTPStatus.CONFLICT
+                elif pgcode in (pgcodes.FOREIGN_KEY_VIOLATION,):
+                    code = "foreign_key_violation"
+                    # a veces 422 es más semántico si el payload del cliente es inválido respecto al modelo
+                    status = HTTPStatus.UNPROCESSABLE_ENTITY
+            problem = _as_problem(status=status, code=code, message="Database constraint violation")
+            log.error("IntegrityError: request_id=%s", problem["request_id"], exc_info=True)
+            return _problem_response(problem, status=status)
 
     if OperationalError is not None:
 
         @app.errorhandler(OperationalError)
         def handle_operational_error(err: Any):
-            # E.g., transient DB connectivity, deadlocks, etc.
+            # Detect deadlock / lock timeout si el driver lo expone
             problem = _as_problem(
                 status=HTTPStatus.SERVICE_UNAVAILABLE,
                 code="service_unavailable",
                 message="Service temporarily unavailable",
             )
-            log.error(
-                "OperationalError: request_id=%s",
-                problem.get("request_id"),
-                exc_info=True,
-            )
-            return _problem_response(problem), HTTPStatus.SERVICE_UNAVAILABLE
+            return _problem_response(problem, status=HTTPStatus.SERVICE_UNAVAILABLE, retry_after=3)
 
     @app.errorhandler(Exception)
     def handle_unexpected_error(err: Exception):
