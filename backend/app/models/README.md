@@ -1,653 +1,732 @@
-# FitnessTrack Data Model (app.models)
+# FitnessTrack Data Model
 
-Documentation for the SQLAlchemy models powering authentication, pseudonymous subject management, exercise cataloguing, training plans, and workout tracking.
-
-## Entity-Relationship Diagram
-
+## Entity Relationship Diagram
 ```mermaid
 erDiagram
-    USERS ||--o{ SUBJECTS : "optionally links"
-    SUBJECTS ||--|| SUBJECT_PROFILES : "profile"
-    SUBJECTS ||--o{ SUBJECT_BODY_METRICS : "tracks"
+    USERS {
+        int id PK
+        varchar email "unique"
+        varchar username "unique"
+        varchar password_hash
+        varchar full_name
+        timestamptz created_at
+        timestamptz updated_at
+    }
 
+    SUBJECTS {
+        int id PK
+        int user_id
+        uuid pseudonym "unique"
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    SUBJECT_PROFILES {
+        int id PK
+        int subject_id "unique"
+        enum sex
+        int birth_year
+        int height_cm
+        varchar dominant_hand
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    SUBJECT_BODY_METRICS {
+        int id PK
+        int subject_id
+        date measured_on
+        numeric weight_kg
+        numeric bodyfat_pct
+        int resting_hr
+        text notes
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    EXERCISES {
+        int id PK
+        varchar name
+        varchar slug "unique"
+        enum primary_muscle
+        enum movement
+        enum mechanics
+        enum force
+        boolean unilateral
+        enum equipment
+        varchar grip
+        text range_of_motion
+        enum difficulty
+        text cues
+        text instructions
+        varchar video_url
+        boolean is_active
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    EXERCISE_ALIASES {
+        int id PK
+        int exercise_id
+        varchar alias
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    TAGS {
+        int id PK
+        varchar name "unique"
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    EXERCISE_TAGS {
+        int exercise_id PK
+        int tag_id PK
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    EXERCISE_SECONDARY_MUSCLES {
+        int exercise_id PK
+        varchar muscle PK
+    }
+
+    ROUTINES {
+        int id PK
+        int owner_subject_id
+        varchar name
+        text description
+        boolean is_public
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    SUBJECT_ROUTINES {
+        int id PK
+        int subject_id
+        int routine_id
+        timestamptz saved_on
+        boolean is_active
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    ROUTINE_DAYS {
+        int id PK
+        int routine_id
+        int day_index
+        boolean is_rest
+        varchar title
+        text notes
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    ROUTINE_DAY_EXERCISES {
+        int id PK
+        int routine_day_id
+        int exercise_id
+        int position
+        text notes
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    ROUTINE_EXERCISE_SETS {
+        int id PK
+        int routine_day_exercise_id
+        int set_index
+        boolean is_warmup
+        boolean to_failure
+        numeric target_weight_kg
+        int target_reps
+        int target_rir
+        numeric target_rpe
+        varchar target_tempo
+        int target_rest_s
+        text notes
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    CYCLES {
+        int id PK
+        int subject_id
+        int routine_id
+        int cycle_number
+        date started_on
+        date ended_on
+        text notes
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    WORKOUT_SESSIONS {
+        int id PK
+        int subject_id
+        timestamptz workout_date
+        enum status
+        int routine_day_id
+        int cycle_id
+        varchar location
+        int perceived_fatigue
+        numeric bodyweight_kg
+        text notes
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    EXERCISE_SET_LOGS {
+        int id PK
+        int subject_id
+        int exercise_id
+        int session_id
+        int planned_set_id
+        timestamptz performed_at
+        int set_index
+        boolean is_warmup
+        boolean to_failure
+        numeric actual_weight_kg
+        int actual_reps
+        int actual_rir
+        numeric actual_rpe
+        varchar actual_tempo
+        int actual_rest_s
+        text notes
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    USERS ||--o| SUBJECTS : "owns"
+    SUBJECTS ||--o{ SUBJECT_PROFILES : "has"
+    SUBJECTS ||--o{ SUBJECT_BODY_METRICS : "records"
+    SUBJECTS ||--o{ WORKOUT_SESSIONS : "performs"
+    SUBJECTS ||--o{ EXERCISE_SET_LOGS : "logs"
+    SUBJECTS ||--o{ CYCLES : "executes"
     SUBJECTS ||--o{ ROUTINES : "owns"
-    ROUTINES ||--o{ ROUTINE_DAYS : "comprises"
-    ROUTINE_DAYS ||--o{ ROUTINE_DAY_EXERCISES : "orders"
+    SUBJECTS ||--o{ SUBJECT_ROUTINES : "saves"
+
+    ROUTINES ||--o{ ROUTINE_DAYS : "contains"
+    ROUTINES ||--o{ CYCLES : "template"
+    ROUTINES ||--o{ SUBJECT_ROUTINES : "shared with"
+
+    SUBJECT_ROUTINES }o--|| SUBJECTS : "subject"
+    SUBJECT_ROUTINES }o--|| ROUTINES : "routine"
+
+    ROUTINE_DAYS ||--o{ ROUTINE_DAY_EXERCISES : "includes"
     ROUTINE_DAY_EXERCISES ||--o{ ROUTINE_EXERCISE_SETS : "plans"
 
-    SUBJECTS ||--o{ CYCLES : "executes"
-    ROUTINES ||--o{ CYCLES : "instantiates"
-    CYCLES ||--o{ WORKOUT_SESSIONS : "logs"
-    SUBJECTS ||--o{ WORKOUT_SESSIONS : "records"
+    EXERCISES ||--o{ ROUTINE_DAY_EXERCISES : "planned"
+    EXERCISES ||--o{ EXERCISE_SET_LOGS : "performed"
+    EXERCISES ||--o{ EXERCISE_ALIASES : "aka"
+    EXERCISES ||--o{ EXERCISE_SECONDARY_MUSCLES : "secondary"
+    EXERCISES ||--o{ EXERCISE_TAGS : "tagged"
 
-    WORKOUT_SESSIONS }o--|| ROUTINE_DAYS : "optional plan"
+    TAGS ||--o{ EXERCISE_TAGS : "labels"
 
-    EXERCISES ||--o{ ROUTINE_DAY_EXERCISES : "referenced by"
-    EXERCISES ||--o{ EXERCISE_ALIASES : "has"
-    EXERCISES ||--o{ EXERCISE_TAGS : "tagged by"
-    EXERCISES ||--o{ EXERCISE_SECONDARY_MUSCLES : "targets"
-    EXERCISES ||--o{ EXERCISE_SET_LOGS : "logged in"
+    CYCLES ||--o{ WORKOUT_SESSIONS : "includes"
+    ROUTINE_DAYS ||--o{ WORKOUT_SESSIONS : "optional plan"
 
-    TAGS ||--o{ EXERCISE_TAGS : "join"
-
-    ROUTINE_EXERCISE_SETS ||--o{ EXERCISE_SET_LOGS : "planned link"
-    WORKOUT_SESSIONS ||--o{ EXERCISE_SET_LOGS : "groups"
+    WORKOUT_SESSIONS ||--o{ EXERCISE_SET_LOGS : "contains"
+    ROUTINE_EXERCISE_SETS ||--o{ EXERCISE_SET_LOGS : "reference"
 ```
 
 ## Core Entities
-
-| Model | Table | Purpose |
-| --- | --- | --- |
-| `User` | `users` | Authentication identities containing direct PII only. |
-| `Subject` | `subjects` | Pseudonymous subject records referenced by all domain data. |
-| `SubjectProfile` | `subject_profiles` | Optional 1:1 indirect PII profile (sex, birth year, height). |
-| `SubjectBodyMetrics` | `subject_body_metrics` | Historical body metric series (weight, body fat, heart rate). |
-| `Exercise` | `exercises` | Catalog of exercises including biomechanical enums and media fields. |
-| `ExerciseAlias` | `exercise_aliases` | Alternative names for exercises to improve search and localization. |
-| `Tag` | `tags` | Curated tag vocabulary applied to exercises. |
-| `ExerciseTag` | `exercise_tags` | Many-to-many association between exercises and tags. |
-| `ExerciseSecondaryMuscle` | `exercise_secondary_muscles` | Normalized mapping of secondary muscle targets for an exercise. |
-| `Routine` | `routines` | Subject-owned mesocycles composed of routine days and planned sets. |
-| `RoutineDay` | `routine_days` | Represents each day within a routine cycle, optionally marked as rest. |
-| `RoutineDayExercise` | `routine_day_exercises` | Ordered exercise slots inside a routine day. |
-| `RoutineExerciseSet` | `routine_exercise_sets` | Planned set prescriptions (load, reps, RIR/RPE, tempo, rest). |
-| `Cycle` | `cycles` | Execution pass through a routine for a subject, grouping sessions. |
-| `WorkoutSession` | `workout_sessions` | Actual workout sessions with optional linkage to the planned routine day and cycle. |
-| `ExerciseSetLog` | `exercise_set_logs` | Performed sets with actual metrics, optionally linked to a planned set and session. |
-
-### Enumerations
-
-All enums are PostgreSQL-native and mirrored in SQLAlchemy:
-
-| Enum | Values |
+| Table | Purpose |
 | --- | --- |
-| `muscle_group` | `CHEST`, `BACK`, `SHOULDERS`, `QUADS`, `HAMSTRINGS`, `GLUTES`, `CALVES`, `BICEPS`, `TRICEPS`, `FOREARMS`, `ABS`, `OBLIQUES`, `FULL_BODY`, `OTHER` |
-| `equipment` | `BARBELL`, `DUMBBELL`, `MACHINE`, `CABLE`, `BODYWEIGHT`, `KETTLEBELL`, `BAND`, `SMITH`, `TRAP_BAR`, `EZ_BAR`, `PLATE`, `OTHER` |
-| `mechanics` | `COMPOUND`, `ISOLATION` |
-| `force_vector` | `PUSH`, `PULL`, `STATIC` |
-| `level` | `BEGINNER`, `INTERMEDIATE`, `ADVANCED` |
-| `movement_pattern` | `HINGE`, `SQUAT`, `LUNGE`, `HORIZONTAL_PUSH`, `HORIZONTAL_PULL`, `VERTICAL_PUSH`, `VERTICAL_PULL`, `CARRY`, `ROTATION`, `ANTI_ROTATION`, `HIP_ABDUCTION`, `HIP_ADDUCTION`, `CALF_RAISE`, `CORE_BRACE`, `OTHER` |
-| `sex` | `MALE`, `FEMALE`, `OTHER`, `PREFER_NOT_TO_SAY` |
-| `workout_status` | `PENDING`, `COMPLETED` |
+| `subjects` | Pseudonymous athlete profile linked optionally to a user account. Holds relationships for owned routines, saved routines, cycles, workouts, and logs. |
+| `routines` | Microcycle templates owned by a subject (`owner_subject_id`) and optionally shareable via `is_public`. |
+| `subject_routines` | Association model capturing subjects that saved or adopted a routine, with `saved_on` and `is_active` status plus uniqueness on `(subject_id, routine_id)`. |
+| `cycles` | Execution instances of a routine by a subject (executor) with uniqueness per `(subject_id, routine_id, cycle_number)`. |
+| `workout_sessions` | Actual workout days for a subject. They may link to a routine day and/or a cycle without requiring the same routine owner. |
+| `exercise_set_logs` | Set-level execution logs tied to a subject and optionally linked to workout sessions and planned sets without enforcing shared ownership. |
 
-### Detailed Entity Reference
+## Enumerations
+| Enum | Values | Source |
+| --- | --- | --- |
+| `muscle_group` | `CHEST`, `BACK`, `SHOULDERS`, `QUADS`, `HAMSTRINGS`, `GLUTES`, `CALVES`, `BICEPS`, `TRICEPS`, `FOREARMS`, `ABS`, `OBLIQUES`, `FULL_BODY`, `OTHER` | SQLAlchemy `Exercise` model and schema. |
+| `equipment` | `BARBELL`, `DUMBBELL`, `MACHINE`, `CABLE`, `BODYWEIGHT`, `KETTLEBELL`, `BAND`, `SMITH`, `TRAP_BAR`, `EZ_BAR`, `PLATE`, `OTHER` | SQLAlchemy `Exercise` model and schema. |
+| `mechanics` | `COMPOUND`, `ISOLATION` | SQLAlchemy `Exercise` model and schema. |
+| `force_vector` | `PUSH`, `PULL`, `STATIC` | SQLAlchemy `Exercise` model and schema. |
+| `level` | `BEGINNER`, `INTERMEDIATE`, `ADVANCED` | SQLAlchemy `Exercise` model and schema. |
+| `movement_pattern` | `HINGE`, `SQUAT`, `LUNGE`, `HORIZONTAL_PUSH`, `HORIZONTAL_PULL`, `VERTICAL_PUSH`, `VERTICAL_PULL`, `CARRY`, `ROTATION`, `ANTI_ROTATION`, `HIP_ABDUCTION`, `HIP_ADDUCTION`, `CALF_RAISE`, `CORE_BRACE`, `OTHER` | SQLAlchemy `Exercise` model and schema. |
+| `sex` | `MALE`, `FEMALE`, `OTHER`, `PREFER_NOT_TO_SAY` | `SubjectProfile.sex` enum. |
+| `workout_status` | `PENDING`, `COMPLETED` | `WorkoutSession.status` enum. |
 
-#### `users` (`User`)
+## Detailed Entity Reference
 
-Authentication identities with direct PII (email, username, optional full name).
+### users
+**Columns**
 
-| name | type | nullable | default | constraints | notes |
-| --- | --- | --- | --- | --- | --- |
-| `id` | `int` | no | auto-increment | PK | Surrogate key. |
-| `email` | `varchar(254)` | no | — | unique (`uq_users_email`) | Normalized to lowercase in ORM validator. |
-| `password_hash` | `varchar(128)` | no | — | — | Write-only setter populates hash. |
-| `username` | `varchar(50)` | no | — | unique (`uq_users_username`) | Trimmed via ORM validator. |
-| `full_name` | `varchar(100)` | yes | — | — | Optional real name. |
-| `created_at` | `timestamptz` | no | `now()` | — | From `TimestampMixin`. |
-| `updated_at` | `timestamptz` | no | `now()` | — | Updated via DB trigger/mixin. |
+| Column | Type | Null? | Default | Notes |
+| --- | --- | --- | --- | --- |
+| `id` | PK, int | No | auto increment | From `PKMixin`. |
+| `email` | varchar(254) | No | — | Unique, normalized via validator. |
+| `password_hash` | varchar(128) | No | — | Write-only setter `password`. |
+| `username` | varchar(50) | No | — | Unique handle. |
+| `full_name` | varchar(100) | Yes | — | Optional direct PII. |
+| `created_at` | timestamptz | No | `now()` | From `TimestampMixin`. |
+| `updated_at` | timestamptz | No | `now()` | From `TimestampMixin`; auto updates. |
+
+**Constraints & Indexes**
+
+- `uq_users_email` on `email`.
+- `uq_users_username` on `username`.
+- Indexes: `ix_users_email`, `ix_users_username`.
 
 **Relationships**
 
-| relation | cardinality | via | delete behavior | notes |
+- One-to-one optional with `subjects` (`Subject.user_id`, `ON DELETE SET NULL`).
+
+### subjects
+**Columns**
+
+| Column | Type | Null? | Default | Notes |
 | --- | --- | --- | --- | --- |
-| `subject` | 1:0..1 | `subjects.user_id` | `SET NULL` | Optional link enabling anonymization. |
+| `id` | PK, int | No | auto increment | — |
+| `user_id` | int | Yes | — | FK `users.id`, `SET NULL`. Unique per subject. |
+| `pseudonym` | uuid | No | `uuid_generate_v4()` | Unique stable identifier. |
+| `created_at` | timestamptz | No | `now()` | — |
+| `updated_at` | timestamptz | No | `now()` | — |
 
-**Indexes**
+**Constraints & Indexes**
 
-- `ix_users_email` (`email`)
-- `ix_users_username` (`username`)
-
-**Schema vs ORM parity**
-
-- No differences detected.
-
-#### `subjects` (`Subject`)
-
-Pseudonymous domain subjects; optional 1:1 link to `users` and owners of routines, cycles, workouts, and logs.
-
-| name | type | nullable | default | constraints | notes |
-| --- | --- | --- | --- | --- | --- |
-| `id` | `int` | no | auto-increment | PK | Surrogate key. |
-| `user_id` | `int` | yes | — | unique (`uq_subjects_user`) | FK to `users.id` (`SET NULL`). |
-| `pseudonym` | `uuid` | no | — | unique (`uq_subjects_pseudonym`) | Stable pseudonymous identifier. |
-| `created_at` | `timestamptz` | no | `now()` | — | — |
-| `updated_at` | `timestamptz` | no | `now()` | — | — |
+- `uq_subjects_user` on `user_id` (enforces 1:1 with `users`).
+- `uq_subjects_pseudonym` on `pseudonym`.
+- Indexes: `ix_subjects_user_id`, `ix_subjects_pseudonym`.
 
 **Relationships**
 
-| relation | cardinality | via | delete behavior | notes |
+- Optional one-to-one to `users` (`SET NULL`).
+- One-to-one to `subject_profiles` (`CASCADE`).
+- One-to-many to `subject_body_metrics`, `cycles`, `workout_sessions`, `exercise_set_logs` (all `CASCADE`).
+- One-to-many to `subject_routines` (association objects).
+- One-to-many ownership to `routines` (`owner_subject_id`).
+- Many-to-many via `subject_routines` to saved routines.
+
+### subject_profiles
+**Columns**
+
+| Column | Type | Null? | Default | Notes |
 | --- | --- | --- | --- | --- |
-| `user` | 0..1:1 | `subjects.user_id` | `SET NULL` | Breaks link during anonymization. |
-| `profile` | 1:0..1 | `subject_profiles.subject_id` | `CASCADE` | Optional indirect PII profile. |
-| `body_metrics` | 1:N | `subject_body_metrics.subject_id` | `CASCADE` | Time-series measurements. |
-| `routines` | 1:N | `routines.subject_id` | `CASCADE` | Planned training templates. |
-| `cycles` | 1:N | `cycles.subject_id` | `CASCADE` | Execution passes. |
-| `workouts` | 1:N | `workout_sessions.subject_id` | `CASCADE` | Recorded sessions. |
-| `exercise_logs` | 1:N | `exercise_set_logs.subject_id` | `CASCADE` | Performed sets. |
+| `id` | PK, int | No | auto increment | — |
+| `subject_id` | int | No | — | FK `subjects.id`, `CASCADE`. Unique 1:1. |
+| `sex` | enum `sex` | Yes | — | Optional. |
+| `birth_year` | int | Yes | — | Validators ensure ≥ 1900 and ≤ current year. |
+| `height_cm` | int | Yes | — | Must be positive when present. |
+| `dominant_hand` | varchar(10) | Yes | — | Trimmed validator (≤10 chars). |
+| `created_at` | timestamptz | No | `now()` | — |
+| `updated_at` | timestamptz | No | `now()` | — |
 
-**Indexes**
+**Constraints & Indexes**
 
-- `ix_subjects_user` (`user_id`)
-- `ix_subjects_pseudonym` (`pseudonym`)
-
-**Schema vs ORM parity**
-
-- ORM assigns a client-side default (`uuid4`) for `pseudonym`; the SQL schema does not declare a database default.
-
-#### `subject_profiles` (`SubjectProfile`)
-
-Optional 1:1 profile storing indirect PII (sex, birth year, height, dominant hand).
-
-| name | type | nullable | default | constraints | notes |
-| --- | --- | --- | --- | --- | --- |
-| `id` | `int` | no | auto-increment | PK | — |
-| `subject_id` | `int` | no | — | unique (`uq_subject_profiles_subject`) | FK to `subjects.id` (`CASCADE`). |
-| `sex` | `sex` enum | yes | — | — | Stored as PostgreSQL enum. |
-| `birth_year` | `int` | yes | — | — | Validators enforce >=1900 and <= current year. |
-| `height_cm` | `int` | yes | — | — | Positive enforcement in ORM helper. |
-| `dominant_hand` | `varchar(10)` | yes | — | — | Free-form short string. |
-| `created_at` | `timestamptz` | no | `now()` | — | — |
-| `updated_at` | `timestamptz` | no | `now()` | — | — |
+- `uq_subject_profiles_subject` on `subject_id`.
+- Index `ix_subject_profiles_subject_id`.
+- Check constraints: `ck_subject_profiles_birth_year_range`, `ck_subject_profiles_height_positive`, `ck_subject_profiles_dominant_hand_len`.
 
 **Relationships**
 
-| relation | cardinality | via | delete behavior | notes |
+- One-to-one back to `subjects` with `CASCADE`.
+
+### subject_body_metrics
+**Columns**
+
+| Column | Type | Null? | Default | Notes |
 | --- | --- | --- | --- | --- |
-| `subject` | 1:1 | `subject_profiles.subject_id` | `CASCADE` | Back-populates `Subject.profile`. |
+| `id` | PK, int | No | auto increment | — |
+| `subject_id` | int | No | — | FK `subjects.id`, `CASCADE`. |
+| `measured_on` | date | No | — | Unique per subject. |
+| `weight_kg` | numeric(5,2) | Yes | — | Non-negative check. |
+| `bodyfat_pct` | numeric(4,1) | Yes | — | Range [0,100]. |
+| `resting_hr` | int | Yes | — | Positive if present. |
+| `notes` | text | Yes | — | Optional. |
+| `created_at` | timestamptz | No | `now()` | — |
+| `updated_at` | timestamptz | No | `now()` | — |
 
-**Indexes**
+**Constraints & Indexes**
 
-- `ix_subject_profiles_subject_id` (`subject_id`)
-
-**Schema vs ORM parity**
-
-- No differences detected.
-
-#### `subject_body_metrics` (`SubjectBodyMetrics`)
-
-Subject-level historical measurements (weight, body fat, resting heart rate, notes).
-
-| name | type | nullable | default | constraints | notes |
-| --- | --- | --- | --- | --- | --- |
-| `id` | `int` | no | auto-increment | PK | — |
-| `subject_id` | `int` | no | — | — | FK to `subjects.id` (`CASCADE`). |
-| `measured_on` | `date` | no | — | unique with `subject_id` (`uq_sbm_subject_day`) | Measurement date. |
-| `weight_kg` | `numeric(5,2)` | yes | — | — | Non-negative validation in ORM helper. |
-| `bodyfat_pct` | `numeric(4,1)` | yes | — | — | ORM helper enforces 0–100 range. |
-| `resting_hr` | `int` | yes | — | — | Positive enforcement in ORM helper. |
-| `notes` | `text` | yes | — | — | Optional comments. |
-| `created_at` | `timestamptz` | no | `now()` | — | — |
-| `updated_at` | `timestamptz` | no | `now()` | — | — |
+- `uq_sbm_subject_day` on `(subject_id, measured_on)`.
+- Indexes: `ix_sbm_subject_id`, `ix_sbm_measured_on`.
+- Check constraints: `ck_sbm_weight_nonnegative`, `ck_sbm_bodyfat_pct_range`, `ck_sbm_resting_hr_positive`.
 
 **Relationships**
 
-| relation | cardinality | via | delete behavior | notes |
+- Many-to-one to `subjects` (`CASCADE`).
+
+### exercises
+**Columns**
+
+| Column | Type | Null? | Default | Notes |
 | --- | --- | --- | --- | --- |
-| `subject` | N:1 | `subject_body_metrics.subject_id` | `CASCADE` | Back-populates `Subject.body_metrics`. |
+| `id` | PK, int | No | auto increment | — |
+| `name` | varchar(120) | No | — | Indexed. |
+| `slug` | varchar(140) | No | — | Unique `uq_exercises_slug`. |
+| `primary_muscle` | enum `muscle_group` | No | — | — |
+| `movement` | enum `movement_pattern` | No | — | — |
+| `mechanics` | enum `mechanics` | No | — | — |
+| `force` | enum `force_vector` | No | — | — |
+| `unilateral` | boolean | No | `false` | Server default `false`. |
+| `equipment` | enum `equipment` | No | — | — |
+| `grip` | varchar(50) | Yes | — | Optional. |
+| `range_of_motion` | text | Yes | — | — |
+| `difficulty` | enum `level` | No | `BEGINNER` | Server default. |
+| `cues` | text | Yes | — | — |
+| `instructions` | text | Yes | — | — |
+| `video_url` | varchar(255) | Yes | — | — |
+| `is_active` | boolean | No | `true` | Server default. |
+| `created_at` | timestamptz | No | `now()` | — |
+| `updated_at` | timestamptz | No | `now()` | — |
 
-**Indexes**
+**Constraints & Indexes**
 
-- `ix_sbm_subject_id` (`subject_id`)
-- `ix_sbm_measured_on` (`measured_on`)
-
-**Schema vs ORM parity**
-
-- No differences detected.
-
-#### `exercises` (`Exercise`)
-
-Exercise catalog enriched with biomechanical metadata, cues, instructions, and media references.
-
-| name | type | nullable | default | constraints | notes |
-| --- | --- | --- | --- | --- | --- |
-| `id` | `int` | no | auto-increment | PK | — |
-| `name` | `varchar(120)` | no | — | — | Indexed for search. |
-| `slug` | `varchar(140)` | no | — | unique (`uq_exercises_slug`) | URL-friendly identifier. |
-| `primary_muscle` | `muscle_group` | no | — | — | Enum. |
-| `movement` | `movement_pattern` | no | — | — | Enum. |
-| `mechanics` | `mechanics` | no | — | — | Enum. |
-| `force` | `force_vector` | no | — | — | Enum. |
-| `unilateral` | `boolean` | no | `false` | — | — |
-| `equipment` | `equipment` | no | — | — | Enum. |
-| `grip` | `varchar(50)` | yes | — | — | — |
-| `range_of_motion` | `text` | yes | — | — | — |
-| `difficulty` | `level` | no | `'BEGINNER'` | — | Enum default. |
-| `cues` | `text` | yes | — | — | — |
-| `instructions` | `text` | yes | — | — | — |
-| `video_url` | `varchar(255)` | yes | — | — | — |
-| `is_active` | `boolean` | no | `true` | — | Soft disable toggle. |
-| `created_at` | `timestamptz` | no | `now()` | — | — |
-| `updated_at` | `timestamptz` | no | `now()` | — | — |
+- `ix_exercises_name` on `name`.
+- Check `ck_exercises_slug_not_empty`.
 
 **Relationships**
 
-| relation | cardinality | via | delete behavior | notes |
+- One-to-many to `exercise_aliases`, `exercise_tags`, `exercise_secondary_muscles`, `routine_day_exercises`, `exercise_set_logs` (with `CASCADE` on dependent tables where defined).
+
+### exercise_aliases
+**Columns**
+
+| Column | Type | Null? | Default | Notes |
 | --- | --- | --- | --- | --- |
-| `aliases` | 1:N | `exercise_aliases.exercise_id` | `CASCADE` | Alternate names. |
-| `tags` | N:M | `exercise_tags` | `CASCADE` (on association) | Join table with `Tag`. |
-| `secondary_muscles` | 1:N | `exercise_secondary_muscles.exercise_id` | `CASCADE` | Additional muscle targets. |
-| `routine_day_exercises` | 1:N | `routine_day_exercises.exercise_id` | `CASCADE` | Planned occurrences. |
-| `exercise_logs` | 1:N | `exercise_set_logs.exercise_id` | CASCADE (ORM) / NO ACTION (SQL) | Logged sets referencing catalog item. |
+| `id` | PK, int | No | auto increment | — |
+| `exercise_id` | int | No | — | FK `exercises.id`, `CASCADE`. |
+| `alias` | varchar(120) | No | — | Unique per exercise. |
+| `created_at` | timestamptz | No | `now()` | — |
+| `updated_at` | timestamptz | No | `now()` | — |
 
-**Indexes**
+**Constraints & Indexes**
 
-- `ix_exercises_name` (`name`)
-
-**Schema vs ORM parity**
-
-- ORM adds `CheckConstraint(length(slug) > 0, name="ck_exercises_slug_not_empty")`; the SQL schema does not include this check.
-- ORM declares `exercise_set_logs.exercise_id` FK with `ON DELETE CASCADE`; the SQL schema omits cascade (`NO ACTION`).
-
-#### `exercise_aliases` (`ExerciseAlias`)
-
-Alternate labels for exercises to aid discoverability.
-
-| name | type | nullable | default | constraints | notes |
-| --- | --- | --- | --- | --- | --- |
-| `id` | `int` | no | auto-increment | PK | — |
-| `exercise_id` | `int` | no | — | — | FK to `exercises.id` (`CASCADE`). |
-| `alias` | `varchar(120)` | no | — | unique with `exercise_id` (`uq_exercise_alias`) | Case-sensitive uniqueness. |
-| `created_at` | `timestamptz` | no | `now()` | — | — |
-| `updated_at` | `timestamptz` | no | `now()` | — | — |
+- `uq_exercise_alias` on `(exercise_id, alias)`.
 
 **Relationships**
 
-| relation | cardinality | via | delete behavior | notes |
+- Many-to-one to `exercises` (`CASCADE`).
+
+### tags
+**Columns**
+
+| Column | Type | Null? | Default | Notes |
 | --- | --- | --- | --- | --- |
-| `exercise` | N:1 | `exercise_aliases.exercise_id` | `CASCADE` | Back-populates `Exercise.aliases`. |
+| `id` | PK, int | No | auto increment | — |
+| `name` | varchar(50) | No | — | Unique. |
+| `created_at` | timestamptz | No | `now()` | — |
+| `updated_at` | timestamptz | No | `now()` | — |
 
-**Schema vs ORM parity**
+**Constraints & Indexes**
 
-- No differences detected.
-
-#### `tags` (`Tag`)
-
-Curated list of exercise tags.
-
-| name | type | nullable | default | constraints | notes |
-| --- | --- | --- | --- | --- | --- |
-| `id` | `int` | no | auto-increment | PK | — |
-| `name` | `varchar(50)` | no | — | unique (`uq_tags_name`) | Canonical tag label. |
-| `created_at` | `timestamptz` | no | `now()` | — | — |
-| `updated_at` | `timestamptz` | no | `now()` | — | — |
+- `uq_tags_name` on `name`.
 
 **Relationships**
 
-| relation | cardinality | via | delete behavior | notes |
+- Many-to-many to `exercises` via `exercise_tags` (cascade on join rows).
+
+### exercise_tags
+**Columns**
+
+| Column | Type | Null? | Default | Notes |
 | --- | --- | --- | --- | --- |
-| `exercises` | N:M | `exercise_tags` | `CASCADE` (on association) | Tags applied through join table. |
+| `exercise_id` | int | No | — | FK `exercises.id`, `CASCADE`; PK part. |
+| `tag_id` | int | No | — | FK `tags.id`, `CASCADE`; PK part. |
+| `created_at` | timestamptz | No | `now()` | From mixin. |
+| `updated_at` | timestamptz | No | `now()` | From mixin. |
 
-**Schema vs ORM parity**
+**Constraints & Indexes**
 
-- No differences detected.
-
-#### `exercise_tags` (`ExerciseTag`)
-
-Association table linking exercises and tags.
-
-| name | type | nullable | default | constraints | notes |
-| --- | --- | --- | --- | --- | --- |
-| `exercise_id` | `int` | no | — | part of PK | FK to `exercises.id` (`CASCADE`). |
-| `tag_id` | `int` | no | — | part of PK | FK to `tags.id` (`CASCADE`). |
+- Composite PK (`exercise_id`, `tag_id`).
+- `uq_exercise_tag` on `(exercise_id, tag_id)` ensures idempotency.
 
 **Relationships**
 
-| relation | cardinality | via | delete behavior | notes |
+- Many-to-one to `exercises` and `tags` (`CASCADE`).
+
+### exercise_secondary_muscles
+**Columns**
+
+| Column | Type | Null? | Default | Notes |
 | --- | --- | --- | --- | --- |
-| `exercise` | N:1 | `exercise_tags.exercise_id` | `CASCADE` | Back-populates `Exercise.tags`. |
-| `tag` | N:1 | `exercise_tags.tag_id` | `CASCADE` | Back-populates `Tag.exercises`. |
+| `exercise_id` | int | No | — | FK `exercises.id`, `CASCADE`; part of composite PK. |
+| `muscle` | varchar(50) | No | — | Composite PK value. |
 
-**Indexes & Constraints**
+**Constraints & Indexes**
 
-- Unique composite `uq_exercise_tag` (`exercise_id`, `tag_id`).
-
-**Schema vs ORM parity**
-
-- SQL schema omits a declared primary key; ORM models treat `(exercise_id, tag_id)` as a composite primary key in addition to the unique constraint.
-- ORM includes timestamp columns (`created_at`, `updated_at`) via `TimestampMixin`; these columns are absent from the SQL schema.
-
-#### `exercise_secondary_muscles` (`ExerciseSecondaryMuscle`)
-
-Normalized list of secondary muscle targets per exercise.
-
-| name | type | nullable | default | constraints | notes |
-| --- | --- | --- | --- | --- | --- |
-| `exercise_id` | `int` | no | — | part of PK | FK to `exercises.id` (`CASCADE`). |
-| `muscle` | `muscle_group` | no | — | part of PK | Stored as enum in SQL; ORM uses `String(50)` with unique constraint. |
+- `uq_exercise_muscle` on `(exercise_id, muscle)`.
+- Index `ix_exercise_muscle`.
 
 **Relationships**
 
-| relation | cardinality | via | delete behavior | notes |
+- Many-to-one to `exercises` (`CASCADE`).
+
+### routines
+**Columns**
+
+| Column | Type | Null? | Default | Notes |
 | --- | --- | --- | --- | --- |
-| `exercise` | N:1 | `exercise_secondary_muscles.exercise_id` | `CASCADE` | Back-populates `Exercise.secondary_muscles`. |
+| `id` | PK, int | No | auto increment | — |
+| `owner_subject_id` | int | No | — | FK `subjects.id`, `CASCADE`. |
+| `name` | varchar(120) | No | — | Unique per owner. |
+| `description` | text | Yes | — | Optional notes. |
+| `is_public` | boolean | No | `false` | Server default enables sharing flag. |
+| `created_at` | timestamptz | No | `now()` | — |
+| `updated_at` | timestamptz | No | `now()` | — |
 
-**Indexes & Constraints**
+**Constraints & Indexes**
 
-- Unique composite `uq_exercise_muscle` (`exercise_id`, `muscle`).
-- Index `ix_exercise_muscle` (`exercise_id`, `muscle`).
-
-**Schema vs ORM parity**
-
-- SQL schema stores `muscle` as `muscle_group` enum; ORM uses `String(50)`.
-- SQL schema lacks explicit primary keys; ORM designates `(exercise_id, muscle)` as composite PK.
-
-#### `routines` (`Routine`)
-
-Subject-owned mesocycle templates grouping routine days and planned sets.
-
-| name | type | nullable | default | constraints | notes |
-| --- | --- | --- | --- | --- | --- |
-| `id` | `int` | no | auto-increment | PK | — |
-| `subject_id` | `int` | no | — | — | FK to `subjects.id` (`CASCADE`). |
-| `name` | `varchar(120)` | no | — | unique per subject (`uq_routines_subject_name`) | Routine title. |
-| `description` | `text` | yes | — | — | Optional summary. |
-| `starts_on` | `date` | yes | — | — | Optional planned start. |
-| `is_active` | `boolean` | no | `true` | — | Active toggle. |
-| `created_at` | `timestamptz` | no | `now()` | — | — |
-| `updated_at` | `timestamptz` | no | `now()` | — | — |
+- `uq_routines_owner_name` on `(owner_subject_id, name)`.
 
 **Relationships**
 
-| relation | cardinality | via | delete behavior | notes |
+- Many-to-one to `subjects` via `owner` (propagates deletes). Owner's routines cascade delete to dependent entities.
+- One-to-many to `routine_days`, `cycles`, and `subject_routines` (`CASCADE`).
+- Many-to-many access via `subject_routines` to other subjects.
+
+### subject_routines
+**Columns**
+
+| Column | Type | Null? | Default | Notes |
 | --- | --- | --- | --- | --- |
-| `subject` | N:1 | `routines.subject_id` | `CASCADE` | Back-populates `Subject.routines`. |
-| `days` | 1:N | `routine_days.routine_id` | `CASCADE` | Ordered day templates. |
-| `cycles` | 1:N | `cycles.routine_id` | `CASCADE` | Execution passes. |
+| `id` | PK, int | No | auto increment | Association row id. |
+| `subject_id` | int | No | — | FK `subjects.id`, `CASCADE`. |
+| `routine_id` | int | No | — | FK `routines.id`, `CASCADE`. |
+| `saved_on` | timestamptz | No | `now()` | Server default `now()`. |
+| `is_active` | boolean | No | `false` | Tracks whether subject still follows routine. |
+| `created_at` | timestamptz | No | `now()` | — |
+| `updated_at` | timestamptz | No | `now()` | — |
 
-**Indexes**
+**Constraints & Indexes**
 
-- `ix_routines_subject_active` (`subject_id`, `is_active`)
-- Unique `uq_routines_subject_name` (`subject_id`, `name`)
-
-**Schema vs ORM parity**
-
-- No differences detected.
-
-#### `routine_days` (`RoutineDay`)
-
-Defines individual days within a routine, optionally flagged as rest days.
-
-| name | type | nullable | default | constraints | notes |
-| --- | --- | --- | --- | --- | --- |
-| `id` | `int` | no | auto-increment | PK | — |
-| `routine_id` | `int` | no | — | — | FK to `routines.id` (`CASCADE`). |
-| `day_index` | `int` | no | — | unique with `routine_id` (`uq_routine_days_routine_day_index`) | 1-based position. |
-| `is_rest` | `boolean` | no | `false` | — | Marks rest day. |
-| `title` | `varchar(100)` | yes | — | — | Optional label. |
-| `notes` | `text` | yes | — | — | Optional instructions. |
-| `created_at` | `timestamptz` | no | `now()` | — | — |
-| `updated_at` | `timestamptz` | no | `now()` | — | — |
+- `uq_subject_routine` on `(subject_id, routine_id)` prevents duplicates.
 
 **Relationships**
 
-| relation | cardinality | via | delete behavior | notes |
+- Many-to-one to `subjects` and `routines` (both `CASCADE`). Serves as link between executors and shareable routines.
+
+### routine_days
+**Columns**
+
+| Column | Type | Null? | Default | Notes |
 | --- | --- | --- | --- | --- |
-| `routine` | N:1 | `routine_days.routine_id` | `CASCADE` | Back-populates `Routine.days`. |
-| `exercises` | 1:N | `routine_day_exercises.routine_day_id` | `CASCADE` | Ordered slots. |
-| `workout_sessions` | 1:0..N | `workout_sessions.routine_day_id` | `SET NULL` | Optional plan reference. |
+| `id` | PK, int | No | auto increment | — |
+| `routine_id` | int | No | — | FK `routines.id`, `CASCADE`. |
+| `day_index` | int | No | — | Unique per routine. |
+| `is_rest` | boolean | No | `false` | Server default. |
+| `title` | varchar(100) | Yes | — | Optional label. |
+| `notes` | text | Yes | — | — |
+| `created_at` | timestamptz | No | `now()` | — |
+| `updated_at` | timestamptz | No | `now()` | — |
 
-**Schema vs ORM parity**
+**Constraints & Indexes**
 
-- No differences detected.
-
-#### `routine_day_exercises` (`RoutineDayExercise`)
-
-Ordered exercise slots within a routine day.
-
-| name | type | nullable | default | constraints | notes |
-| --- | --- | --- | --- | --- | --- |
-| `id` | `int` | no | auto-increment | PK | — |
-| `routine_day_id` | `int` | no | — | — | FK to `routine_days.id` (`CASCADE`). |
-| `exercise_id` | `int` | no | — | — | FK to `exercises.id` (`CASCADE`). |
-| `position` | `int` | no | — | unique with `routine_day_id` (`uq_rde_day_pos`) | 1-based ordering. |
-| `notes` | `text` | yes | — | — | Optional cues. |
-| `created_at` | `timestamptz` | no | `now()` | — | — |
-| `updated_at` | `timestamptz` | no | `now()` | — | — |
+- `uq_routine_days_routine_day_index` on `(routine_id, day_index)`.
 
 **Relationships**
 
-| relation | cardinality | via | delete behavior | notes |
+- Many-to-one to `routines` (`CASCADE`).
+- One-to-many to `routine_day_exercises` (`CASCADE`).
+- Optional reference from `workout_sessions` (`SET NULL`).
+
+### routine_day_exercises
+**Columns**
+
+| Column | Type | Null? | Default | Notes |
 | --- | --- | --- | --- | --- |
-| `routine_day` | N:1 | `routine_day_exercises.routine_day_id` | `CASCADE` | Back-populates `RoutineDay.exercises`. |
-| `exercise` | N:1 | `routine_day_exercises.exercise_id` | `CASCADE` | References catalog entry. |
-| `sets` | 1:N | `routine_exercise_sets.routine_day_exercise_id` | `CASCADE` | Planned prescriptions. |
-| `exercise_logs` | 1:0..N | `exercise_set_logs.exercise_id` & `planned_set_id` | Mixed | Logs may link via `planned_set_id`. |
+| `id` | PK, int | No | auto increment | — |
+| `routine_day_id` | int | No | — | FK `routine_days.id`, `CASCADE`. |
+| `exercise_id` | int | No | — | FK `exercises.id`, `CASCADE`. |
+| `position` | int | No | — | Unique per day. |
+| `notes` | text | Yes | — | Optional instructions. |
+| `created_at` | timestamptz | No | `now()` | — |
+| `updated_at` | timestamptz | No | `now()` | — |
 
-**Indexes**
+**Constraints & Indexes**
 
-- `ix_rde_day_exercise` (`routine_day_id`, `exercise_id`)
-
-**Schema vs ORM parity**
-
-- No differences detected.
-
-#### `routine_exercise_sets` (`RoutineExerciseSet`)
-
-Planned set prescriptions for a routine-day exercise.
-
-| name | type | nullable | default | constraints | notes |
-| --- | --- | --- | --- | --- | --- |
-| `id` | `int` | no | auto-increment | PK | — |
-| `routine_day_exercise_id` | `int` | no | — | — | FK to `routine_day_exercises.id` (`CASCADE`). |
-| `set_index` | `int` | no | — | unique with `routine_day_exercise_id` (`uq_res_rde_set_idx`) | 1-based order. |
-| `is_warmup` | `boolean` | no | `false` | — | Warm-up flag. |
-| `to_failure` | `boolean` | no | `false` | — | Failure flag. |
-| `target_weight_kg` | `numeric(6,2)` | yes | — | — | Planned load. |
-| `target_reps` | `int` | yes | — | — | Planned repetitions. |
-| `target_rir` | `int` | yes | — | — | Reps in reserve. |
-| `target_rpe` | `numeric(3,1)` | yes | — | — | Rate of perceived exertion. |
-| `target_tempo` | `varchar(15)` | yes | — | — | Tempo prescription. |
-| `target_rest_s` | `int` | yes | — | — | Planned rest (seconds). |
-| `notes` | `text` | yes | — | — | Optional details. |
-| `created_at` | `timestamptz` | no | `now()` | — | — |
-| `updated_at` | `timestamptz` | no | `now()` | — | — |
+- `uq_rde_day_pos` on `(routine_day_id, position)`.
+- `ix_rde_day_exercise` on `(routine_day_id, exercise_id)`.
 
 **Relationships**
 
-| relation | cardinality | via | delete behavior | notes |
+- Many-to-one to `routine_days` and `exercises` (`CASCADE`).
+- One-to-many to `routine_exercise_sets` (`CASCADE`).
+
+### routine_exercise_sets
+**Columns**
+
+| Column | Type | Null? | Default | Notes |
 | --- | --- | --- | --- | --- |
-| `routine_day_exercise` | N:1 | `routine_exercise_sets.routine_day_exercise_id` | `CASCADE` | Back-populates `RoutineDayExercise.sets`. |
-| `exercise_logs` | 1:0..N | `exercise_set_logs.planned_set_id` | `SET NULL` | Logs optionally link for adherence tracking. |
+| `id` | PK, int | No | auto increment | — |
+| `routine_day_exercise_id` | int | No | — | FK `routine_day_exercises.id`, `CASCADE`. |
+| `set_index` | int | No | — | Unique per routine_day_exercise. |
+| `is_warmup` | boolean | No | `false` | Server default. |
+| `to_failure` | boolean | No | `false` | Server default. |
+| `target_weight_kg` | numeric(6,2) | Yes | — | Planned load. |
+| `target_reps` | int | Yes | — | Planned reps. |
+| `target_rir` | int | Yes | — | Planned reps-in-reserve. |
+| `target_rpe` | numeric(3,1) | Yes | — | Planned RPE. |
+| `target_tempo` | varchar(15) | Yes | — | Planned tempo. |
+| `target_rest_s` | int | Yes | — | Planned rest in seconds. |
+| `notes` | text | Yes | — | Optional. |
+| `created_at` | timestamptz | No | `now()` | — |
+| `updated_at` | timestamptz | No | `now()` | — |
 
-**Schema vs ORM parity**
+**Constraints & Indexes**
 
-- No differences detected.
-
-#### `cycles` (`Cycle`)
-
-Execution instance of a routine for a subject, sequencing sessions per cycle number.
-
-| name | type | nullable | default | constraints | notes |
-| --- | --- | --- | --- | --- | --- |
-| `id` | `int` | no | auto-increment | PK | — |
-| `subject_id` | `int` | no | — | — | FK to `subjects.id` (`CASCADE`). |
-| `routine_id` | `int` | no | — | — | FK to `routines.id` (`CASCADE`). |
-| `cycle_number` | `int` | no | — | unique with `routine_id` (`uq_cycles_routine_number`) | Sequential identifier. |
-| `started_on` | `date` | yes | — | — | Optional start date. |
-| `ended_on` | `date` | yes | — | — | Optional completion date. |
-| `notes` | `text` | yes | — | — | Optional reflections. |
-| `created_at` | `timestamptz` | no | `now()` | — | — |
-| `updated_at` | `timestamptz` | no | `now()` | — | — |
+- `uq_res_rde_set_idx` on `(routine_day_exercise_id, set_index)`.
 
 **Relationships**
 
-| relation | cardinality | via | delete behavior | notes |
+- Many-to-one to `routine_day_exercises` (`CASCADE`).
+- Optional reference from `exercise_set_logs` (`SET NULL`).
+
+### cycles
+**Columns**
+
+| Column | Type | Null? | Default | Notes |
 | --- | --- | --- | --- | --- |
-| `subject` | N:1 | `cycles.subject_id` | `CASCADE` | Back-populates `Subject.cycles`. |
-| `routine` | N:1 | `cycles.routine_id` | `CASCADE` | Back-populates `Routine.cycles`. |
-| `sessions` | 1:N | `workout_sessions.cycle_id` | `SET NULL` | Sessions optionally reference cycle. |
+| `id` | PK, int | No | auto increment | — |
+| `subject_id` | int | No | — | FK `subjects.id`, executor. |
+| `routine_id` | int | No | — | FK `routines.id`, template. |
+| `cycle_number` | int | No | — | Sequential per subject+routine, >0 check. |
+| `started_on` | date | Yes | — | Optional. |
+| `ended_on` | date | Yes | — | Optional. |
+| `notes` | text | Yes | — | Optional. |
+| `created_at` | timestamptz | No | `now()` | — |
+| `updated_at` | timestamptz | No | `now()` | — |
 
-**Indexes**
+**Constraints & Indexes**
 
-- `ix_cycles_subject_started_on` (`subject_id`, `started_on`)
-- `ix_cycles_routine` (`routine_id`)
-- Unique `uq_cycles_routine_number` (`routine_id`, `cycle_number`)
-
-**Schema vs ORM parity**
-
-- ORM adds `CheckConstraint(cycle_number > 0, name="ck_cycles_number_positive")`; SQL schema omits this check.
-
-#### `workout_sessions` (`WorkoutSession`)
-
-Recorded workouts for a subject, optionally linked to a planned routine day and cycle.
-
-| name | type | nullable | default | constraints | notes |
-| --- | --- | --- | --- | --- | --- |
-| `id` | `int` | no | auto-increment | PK | — |
-| `subject_id` | `int` | no | — | unique with `workout_date` (`uq_ws_subject_date`) | FK to `subjects.id` (`CASCADE`). |
-| `workout_date` | `date` | no | — | unique with `subject_id` | Session calendar day. |
-| `status` | `workout_status` | no | `'PENDING'` | — | Enum default. |
-| `routine_day_id` | `int` | yes | — | — | FK to `routine_days.id` (`SET NULL`). |
-| `cycle_id` | `int` | yes | — | — | FK to `cycles.id` (`SET NULL`). |
-| `location` | `varchar(120)` | yes | — | — | Optional venue. |
-| `perceived_fatigue` | `int` | yes | — | — | Optional subjective rating. |
-| `bodyweight_kg` | `numeric(5,2)` | yes | — | — | Body weight at session time. |
-| `notes` | `text` | yes | — | — | Free-form log. |
-| `created_at` | `timestamptz` | no | `now()` | — | — |
-| `updated_at` | `timestamptz` | no | `now()` | — | — |
+- `uq_cycles_subject_routine_number` on `(subject_id, routine_id, cycle_number)`.
+- Check `ck_cycles_number_positive` ensures positive numbering.
+- Indexes: `ix_cycles_subject_started_on`, `ix_cycles_routine`.
 
 **Relationships**
 
-| relation | cardinality | via | delete behavior | notes |
+- Many-to-one to `subjects` (executor) and `routines` (template) with `CASCADE` semantics.
+- One-to-many to `workout_sessions` (executor schedule).
+
+### workout_sessions
+**Columns**
+
+| Column | Type | Null? | Default | Notes |
 | --- | --- | --- | --- | --- |
-| `subject` | N:1 | `workout_sessions.subject_id` | `CASCADE` | Back-populates `Subject.workouts`. |
-| `routine_day` | N:0..1 | `workout_sessions.routine_day_id` | `SET NULL` | Optional planned day reference. |
-| `cycle` | N:0..1 | `workout_sessions.cycle_id` | `SET NULL` | Optional cycle reference. |
-| `exercise_logs` | 1:N | `exercise_set_logs.session_id` | CASCADE (ORM) / `CASCADE` in SQL | Groups performed sets. |
+| `id` | PK, int | No | auto increment | — |
+| `subject_id` | int | No | — | FK `subjects.id`, `CASCADE`. |
+| `workout_date` | timestamptz | No | — | Zoned date-time. |
+| `status` | enum `workout_status` | No | `PENDING` | Server default. |
+| `routine_day_id` | int | Yes | — | FK `routine_days.id`, `SET NULL`. Optional link to template day. |
+| `cycle_id` | int | Yes | — | FK `cycles.id`, `SET NULL`. Optional link to execution cycle. |
+| `location` | varchar(120) | Yes | — | Optional gym/location. |
+| `perceived_fatigue` | int | Yes | — | Optional rating. |
+| `bodyweight_kg` | numeric(5,2) | Yes | — | Optional weigh-in. |
+| `notes` | text | Yes | — | Optional. |
+| `created_at` | timestamptz | No | `now()` | — |
+| `updated_at` | timestamptz | No | `now()` | — |
 
-**Indexes**
+**Constraints & Indexes**
 
-- `ix_ws_routine_day` (`routine_day_id`)
-- `ix_ws_cycle` (`cycle_id`)
-- Unique `uq_ws_subject_date` (`subject_id`, `workout_date`)
-
-**Schema vs ORM parity**
-
-- No differences detected.
-
-#### `exercise_set_logs` (`ExerciseSetLog`)
-
-Performed set logs capturing actual metrics, optionally linked to planned sets and workout sessions.
-
-| name | type | nullable | default | constraints | notes |
-| --- | --- | --- | --- | --- | --- |
-| `id` | `int` | no | auto-increment | PK | — |
-| `subject_id` | `int` | no | — | part of unique (`uq_esl_session_set`) | FK to `subjects.id` (`CASCADE`). |
-| `exercise_id` | `int` | no | — | part of unique | FK to `exercises.id` (NO ACTION in SQL). |
-| `session_id` | `int` | yes | — | — | FK to `workout_sessions.id` (`CASCADE` in SQL, `SET NULL` in ORM). |
-| `planned_set_id` | `int` | yes | — | — | FK to `routine_exercise_sets.id` (`SET NULL`). |
-| `performed_at` | `timestamptz` | no | — | part of unique | Timestamp of performance. |
-| `set_index` | `int` | no | — | part of unique | Ordering within performed_at grouping. |
-| `is_warmup` | `boolean` | no | `false` | — | Warm-up flag. |
-| `to_failure` | `boolean` | no | `false` | — | Failure flag. |
-| `actual_weight_kg` | `numeric(6,2)` | yes | — | — | Actual load. |
-| `actual_reps` | `int` | yes | — | — | Actual repetitions. |
-| `actual_rir` | `int` | yes | — | — | Reps in reserve. |
-| `actual_rpe` | `numeric(3,1)` | yes | — | — | Rate of perceived exertion. |
-| `actual_tempo` | `varchar(15)` | yes | — | — | Performed tempo. |
-| `actual_rest_s` | `int` | yes | — | — | Rest duration. |
-| `notes` | `text` | yes | — | — | Optional notes. |
-| `created_at` | `timestamptz` | no | `now()` | — | — |
-| `updated_at` | `timestamptz` | no | `now()` | — | — |
+- `uq_ws_subject_date` on `(subject_id, workout_date)`.
+- Indexes: `ix_ws_routine_day`, `ix_ws_cycle`.
 
 **Relationships**
 
-| relation | cardinality | via | delete behavior | notes |
+- Many-to-one to `subjects`, `routine_days`, and `cycles` with passive deletes.
+- One-to-many to `exercise_set_logs` (optional, `SET NULL` on session delete).
+
+**Domain Validation**
+
+- Validator ensures `subject_id` equals `cycle.subject_id` whenever a cycle is attached (via `cycle_id` or relationship). No validation enforces routine-day ownership; linking to shared routines is allowed.
+
+### exercise_set_logs
+**Columns**
+
+| Column | Type | Null? | Default | Notes |
 | --- | --- | --- | --- | --- |
-| `subject` | N:1 | `exercise_set_logs.subject_id` | `CASCADE` | Back-populates `Subject.exercise_logs`. |
-| `exercise` | N:1 | `exercise_set_logs.exercise_id` | CASCADE (ORM) / NO ACTION (SQL) | Catalog linkage. |
-| `session` | N:0..1 | `exercise_set_logs.session_id` | `SET NULL` (ORM) / `CASCADE` (SQL) | Optional session grouping. |
-| `planned_set` | N:0..1 | `exercise_set_logs.planned_set_id` | `SET NULL` | Links to planned prescription. |
+| `id` | PK, int | No | auto increment | — |
+| `subject_id` | int | No | — | FK `subjects.id`, `CASCADE`. |
+| `exercise_id` | int | No | — | FK `exercises.id`, `CASCADE`. |
+| `session_id` | int | Yes | — | FK `workout_sessions.id`, `SET NULL`. Optional. |
+| `planned_set_id` | int | Yes | — | FK `routine_exercise_sets.id`, `SET NULL`. Optional. |
+| `performed_at` | timestamptz | No | — | Execution timestamp. |
+| `set_index` | int | No | — | Position within session/exercise. |
+| `is_warmup` | boolean | No | `false` | Server default. |
+| `to_failure` | boolean | No | `false` | Server default. |
+| `actual_weight_kg` | numeric(6,2) | Yes | — | Optional measured load. |
+| `actual_reps` | int | Yes | — | Optional reps. |
+| `actual_rir` | int | Yes | — | Optional RIR. |
+| `actual_rpe` | numeric(3,1) | Yes | — | Optional RPE. |
+| `actual_tempo` | varchar(15) | Yes | — | Optional tempo. |
+| `actual_rest_s` | int | Yes | — | Optional rest time. |
+| `notes` | text | Yes | — | Optional. |
+| `created_at` | timestamptz | No | `now()` | — |
+| `updated_at` | timestamptz | No | `now()` | — |
 
-**Indexes & Constraints**
+**Constraints & Indexes**
 
-- `ix_esl_subject_time` (`subject_id`, `performed_at`)
-- `ix_esl_exercise_time` (`exercise_id`, `performed_at`)
-- `uq_esl_session_set` (`subject_id`, `exercise_id`, `performed_at`, `set_index`)
-- `ix_esl_by_session` (`subject_id`, `exercise_id`, `session_id`, `set_index`)
-- `ix_esl_planned` (`planned_set_id`)
+- Unique constraint `uq_esl_session_set` on `(subject_id, exercise_id, performed_at, set_index)`.
+- Indexes: `ix_esl_subject_time`, `ix_esl_exercise_time`, `ix_esl_by_session`, `ix_esl_planned`.
 
-**Schema vs ORM parity**
+**Relationships**
 
-- SQL defines `exercise_set_logs.session_id` FK with `ON DELETE CASCADE`; ORM uses `SET NULL`.
-- SQL omits cascade on `exercise_id` FK; ORM specifies `ON DELETE CASCADE`.
+- Many-to-one to `subjects`, `exercises`, `workout_sessions`, `routine_exercise_sets`.
+
+**Domain Validation**
+
+- Validator enforces that `subject_id` matches `WorkoutSession.subject_id` when `session_id` is set.
+- No ORM validation ties `planned_set_id` to the owning subject, allowing referencing shared templates.
 
 ## Relationships
-
-| Relationship | Type | Notes |
-| --- | --- | --- |
-| `User` ↔ `Subject` | 1:0..1 via `subjects.user_id` | Break link by setting `user_id` to `NULL` for anonymization. |
-| `Subject` → `SubjectProfile` | 1:1 | Cascade delete maintains 1:1 profile integrity. |
-| `Subject` → `SubjectBodyMetrics` | 1:N | Unique constraint prevents duplicate measurements per day. |
-| `Subject` → `Routine` | 1:N | Cascade delete removes routine hierarchy for deleted subjects. |
-| `Subject` → `Cycle` | 1:N | Subject ownership enforced via cascade and ORM validators. |
-| `Subject` → `WorkoutSession` | 1:N | Cascade delete ensures workout history is subject-scoped. |
-| `Subject` → `ExerciseSetLog` | 1:N | Cascade delete purges performed sets with the subject. |
-| `Routine` → `RoutineDay` | 1:N | Days cascade on routine deletion; `(routine_id, day_index)` unique. |
-| `RoutineDay` → `RoutineDayExercise` | 1:N | Ordered exercises per day with uniqueness on `(routine_day_id, position)`. |
-| `RoutineDayExercise` → `RoutineExerciseSet` | 1:N | Planned sets per exercise with uniqueness on `(routine_day_exercise_id, set_index)`. |
-| `Routine` → `Cycle` | 1:N | Cascade ensures cycle cleanup when routine removed. |
-| `Cycle` → `WorkoutSession` | 1:N (optional) | `SET NULL` when cycle removed to preserve sessions. |
-| `WorkoutSession` → `ExerciseSetLog` | 1:N (optional) | SQL cascades delete logs; ORM sets `session_id` to `NULL`. |
-| `RoutineExerciseSet` → `ExerciseSetLog` | 1:N (optional) | `SET NULL` keeps performed history even if plan deleted. |
-| `Exercise` → `RoutineDayExercise` | 1:N | Cascade maintain referential integrity when deleting exercises. |
-| `Exercise` ↔ `Tag` | N:M via `exercise_tags` | Composite unique prevents duplicate associations. |
-| `Exercise` → `ExerciseAlias` | 1:N | Cascade ensures alias cleanup. |
-| `Exercise` → `ExerciseSecondaryMuscle` | 1:N | Junction with composite key. |
+| Relationship | Cardinality | On Delete | Notes |
+| --- | --- | --- | --- |
+| `users.id` → `subjects.user_id` | 1 ↔ 0..1 | `SET NULL` | Supports anonymisation by breaking PII link. |
+| `subjects.id` → `subject_profiles.subject_id` | 1 ↔ 0..1 | `CASCADE` | Ensures profiles removed with subject. |
+| `subjects.id` → `subject_body_metrics.subject_id` | 1 ↔ 0..N | `CASCADE` | Series data purged with subject. |
+| `subjects.id` → `routines.owner_subject_id` | 1 ↔ 0..N | `CASCADE` | Routine ownership. |
+| `subjects.id` ↔ `subject_routines.subject_id` | 1 ↔ 0..N | `CASCADE` | Saved/shared routines per subject. |
+| `routines.id` ↔ `subject_routines.routine_id` | 1 ↔ 0..N | `CASCADE` | Removes share links when routine deleted. |
+| `subjects.id` → `cycles.subject_id` | 1 ↔ 0..N | `CASCADE` | Executor-specific cycles. |
+| `routines.id` → `cycles.routine_id` | 1 ↔ 0..N | `CASCADE` | Template reference. |
+| `cycles.id` → `workout_sessions.cycle_id` | 1 ↔ 0..N | `SET NULL` | Sessions detach when cycle removed. |
+| `routine_days.id` → `workout_sessions.routine_day_id` | 1 ↔ 0..N | `SET NULL` | Sessions may reference shared templates. |
+| `subjects.id` → `workout_sessions.subject_id` | 1 ↔ 0..N | `CASCADE` | GDPR subject pattern. |
+| `workout_sessions.id` → `exercise_set_logs.session_id` | 1 ↔ 0..N | `SET NULL` | Logs survive when session deleted. |
+| `routine_exercise_sets.id` → `exercise_set_logs.planned_set_id` | 1 ↔ 0..N | `SET NULL` | Allows adherence analytics without ownership coupling. |
+| `routine_day_exercises.id` → `routine_exercise_sets.routine_day_exercise_id` | 1 ↔ 0..N | `CASCADE` | Planned sets tied to day exercise. |
+| `routine_days.id` → `routine_day_exercises.routine_day_id` | 1 ↔ 0..N | `CASCADE` | Ordered exercises per day. |
+| `exercises.id` → `routine_day_exercises.exercise_id` | 1 ↔ 0..N | `CASCADE` | Template uses exercise catalog. |
+| `exercises.id` → `exercise_set_logs.exercise_id` | 1 ↔ 0..N | `CASCADE` | Logs removed if exercise purged. |
+| `exercises.id` → `exercise_aliases.exercise_id` | 1 ↔ 0..N | `CASCADE` | Alias cleanup. |
+| `exercises.id` ↔ `exercise_tags.exercise_id` | 1 ↔ 0..N | `CASCADE` | Join table cascades. |
+| `tags.id` ↔ `exercise_tags.tag_id` | 1 ↔ 0..N | `CASCADE` | Tag cleanup. |
+| `exercises.id` ↔ `exercise_secondary_muscles.exercise_id` | 1 ↔ 0..N | `CASCADE` | Secondary muscles follow exercise. |
 
 ## Conventions & Constraints
+- All tables inheriting `TimestampMixin` expose `created_at` / `updated_at` with database-managed `now()` defaults and automatic update on modification.
+- Surrogate primary keys use `id` via `PKMixin`, except for pure association tables (`exercise_tags`, `exercise_secondary_muscles`) where composite primary keys enforce natural uniqueness.
+- Soft-ownership follows the GDPR subject pattern: domain entities reference `subjects` (pseudonymous) instead of `users`.
+- Unique constraints enforce natural keys per domain: e.g., `uq_routines_owner_name`, `uq_subject_routine`, `uq_cycles_subject_routine_number`.
+- Application-level validators complement schema checks for domain invariants (matching subjects between sessions/cycles and logs/sessions).
 
-- **Mixins:** `PKMixin`, `TimestampMixin`, and `ReprMixin` provide integer IDs, timestamp columns, and debug-friendly reprs. Apply them to new models for consistency.【F:backend/app/models/base.py†L1-L52】
-- **Timestamps:** Domain entities include `created_at` / `updated_at` with database defaults (`func.now`) to keep time in UTC at the database level.【F:backend/app/models/user.py†L24-L49】【F:backend/app/models/subject.py†L30-L133】【F:backend/app/models/exercise.py†L22-L127】【F:backend/app/models/exercise_secondary.py†L1-L29】【F:backend/app/models/routine.py†L1-L123】【F:backend/app/models/cycle.py†L1-L78】【F:backend/app/models/workout.py†L1-L92】【F:backend/app/models/exercise_log.py†L1-L116】
-- **Uniqueness:** Business rules rely on explicit `UniqueConstraint`s—emails/usernames, per-subject routine naming, per-day ordering, per-set planning/log combinations, and association tables all guard against duplicates.【F:docs/dbdiagram.sql†L31-L315】【F:backend/app/models/user.py†L43-L49】【F:backend/app/models/subject.py†L64-L74】【F:backend/app/models/exercise.py†L82-L127】【F:backend/app/models/exercise_secondary.py†L16-L29】【F:backend/app/models/routine.py†L36-L116】【F:backend/app/models/cycle.py†L41-L69】【F:backend/app/models/workout.py†L39-L81】【F:backend/app/models/exercise_log.py†L60-L110】
-- **Indexes:** Secondary indexes support lookups by pseudonym, exercise names, subject/date combos, and analytical queries on performed sets.【F:docs/dbdiagram.sql†L40-L320】【F:backend/app/models/subject.py†L64-L102】【F:backend/app/models/exercise.py†L82-L127】【F:backend/app/models/exercise_secondary.py†L20-L29】【F:backend/app/models/routine.py†L36-L116】【F:backend/app/models/cycle.py†L52-L69】【F:backend/app/models/workout.py†L60-L81】【F:backend/app/models/exercise_log.py†L78-L110】
-- **Foreign keys & Cascades:** Child records cascade for subject-scoped hierarchies (profiles, metrics, routines, cycles, workouts) while optional references (`workout_sessions.routine_day_id`, `exercise_set_logs.planned_set_id`) use `SET NULL` to preserve history when plans are removed. Differences between ORM and SQL cascades are called out in entity parity notes.【F:docs/dbdiagram.sql†L322-L360】【F:backend/app/models/subject.py†L30-L133】【F:backend/app/models/routine.py†L36-L116】【F:backend/app/models/cycle.py†L36-L78】【F:backend/app/models/workout.py†L36-L92】【F:backend/app/models/exercise_log.py†L33-L116】
-- **Validators:** ORM-level validators enforce normalization (emails, usernames) and subject consistency across cycles, sessions, and logs to catch mismatched relationships before commit.【F:backend/app/models/user.py†L51-L107】【F:backend/app/models/cycle.py†L70-L78】【F:backend/app/models/workout.py†L65-L124】【F:backend/app/models/exercise_log.py†L112-L192】
-
-## Mapping to the Canonical Schema
-
-The SQLAlchemy definitions align with the canonical schema exported in [`docs/dbdiagram.sql`](../../docs/dbdiagram.sql). Use the ERD source to cross-check column types, enum values, constraint names, and cascade behaviors before applying migrations.【F:docs/dbdiagram.sql†L1-L360】
+## Schema vs ORM Parity
+| Entity | Status |
+| --- | --- |
+| `users` | ORM mirrors schema columns, constraints, and indexes. |
+| `subjects` | ORM enforces same unique constraints and indexes as schema. |
+| `subject_profiles` | ORM adds validators mirroring DB checks; structure matches schema. |
+| `subject_body_metrics` | ORM and schema aligned on unique/check constraints. |
+| `exercises` | ORM includes enum columns and server defaults consistent with schema. |
+| `exercise_aliases` / `exercise_tags` / `exercise_secondary_muscles` | ORM matches schema composite keys and cascades. |
+| `routines` | ORM exposes `owner_subject_id` and `is_public`; `is_active` removed from both ORM and documentation. |
+| `subject_routines` | Implemented as full model with timestamps, `saved_on`, `is_active`, and uniqueness. |
+| `routine_days` / `routine_day_exercises` / `routine_exercise_sets` | ORM structure matches schema with unique constraints and cascades. |
+| `cycles` | ORM enforces `(subject_id, routine_id, cycle_number)` uniqueness plus positive cycle numbers. |
+| `workout_sessions` | ORM aligns with schema; validators ensure subject-cycle parity without restricting routine day ownership. |
+| `exercise_set_logs` | ORM aligns with schema; validators only enforce session-subject parity allowing shared planned sets. |
 
 ## Development Notes
-
-1. **Migrations:** This service uses Alembic migrations located in `backend/migrations`. Run `flask db migrate` / `flask db upgrade` (or the project-specific wrappers) after modifying models to keep the database schema synchronized.【F:backend/migrations/env.py†L1-L121】
-2. **Adding models:** Define new models under this package, import them in `app/models/__init__.py`, and register relationships using the existing mixins and enums for consistency.【F:backend/app/models/__init__.py†L1-L26】
-3. **Updating docs:** When the schema changes, regenerate the ERD in dbdiagram.io and export the updated SQL into `docs/dbdiagram.sql`, then refresh this README to mirror the authoritative schema and note any ORM divergences.
-
-## Example Usage
-
-```python
-from sqlalchemy.orm import Session
-from app.models import Subject, Routine, RoutineDay
-
-
-def create_routine(session: Session, subject: Subject) -> Routine:
-    routine = Routine(subject=subject, name="PPL Mesocycle")
-    routine.days.append(RoutineDay(day_index=1, title="Push"))
-    session.add(routine)
-    session.commit()
-    session.refresh(routine)
-    return routine
-```
-
-```python
-from sqlalchemy import select
-from app.models import ExerciseSetLog
-
-
-def recent_logs(session: Session, subject_id: int, limit: int = 10):
-    stmt = (
-        select(ExerciseSetLog)
-        .where(ExerciseSetLog.subject_id == subject_id)
-        .order_by(ExerciseSetLog.performed_at.desc())
-        .limit(limit)
-    )
-    return session.scalars(stmt).all()
-```
-
-## Contributing to the Data Model
-
-- Discuss proposed schema changes with the team before implementation to validate backward compatibility and migration strategy.
-- Update both the SQLAlchemy model and corresponding Alembic migration; keep constraint names stable when possible.
-- Run database migrations against a local database and execute automated tests touching the ORM to ensure integrity.
-- Refresh this README and the `dbdiagram.sql` export whenever enums, relationships, cascades, or constraints change.
+- **Routine ownership**: Migration must rename `routines.subject_id` to `owner_subject_id` (or drop/recreate) and drop legacy `is_active` usage in favor of `subject_routines.is_active`.
+- **SubjectRoutine model**: Requires creation of `subject_routines` table with timestamps, `saved_on`, `is_active`, and unique constraint. Update ORM imports if exposing the model externally.
+- **Cycle uniqueness**: Ensure database migration updates the unique index to `(subject_id, routine_id, cycle_number)` and removes prior owner-based constraint.
+- **Validator adjustments**: Previous cross-owner validations in `WorkoutSession` and `ExerciseSetLog` should be relaxed at the ORM level; only subject-to-cycle/session parity checks remain while routine ownership checks move to application logic.
+- **Sharing flows**: Application services must use `subject_routines` to authorize execution of shared/public routines and to manage `is_active` state per subject
