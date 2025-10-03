@@ -20,7 +20,7 @@ from sqlalchemy import (
     Enum as SAEnum,
 )
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, validates as orm_validates
 
 from app.core.extensions import db
 
@@ -178,36 +178,45 @@ class SubjectProfile(PKMixin, ReprMixin, TimestampMixin, db.Model):
         """Minimum allowed birth year for sanity checks."""
         return 1900
 
-    def set_birth_year(self, value: int | None) -> None:
-        """
-        Validate and set ``birth_year``.
+    @orm_validates("birth_year")
+    def validate_birth_year(self, key: str, value: int | None) -> int | None:
+        """Validator ensuring ``birth_year`` remains within sanity bounds."""
 
-        :param value: Year or ``None`` to unset.
-        :type value: int | None
-        :raises ValueError: If outside sanity range.
-        """
         if value is None:
-            self.birth_year = None
-            return
-        cy = self._current_year()
-        if value < self._min_birth_year or value > cy:
+            return None
+
+        current_year = self._current_year()
+        if value < self._min_birth_year or value > current_year:
             raise ValueError("birth_year out of allowed range.")
-        self.birth_year = value
 
-    def set_height_cm(self, value: int | None) -> None:
-        """
-        Validate and set ``height_cm``.
+        return value
 
-        :param value: Height in centimeters or ``None``.
-        :type value: int | None
-        :raises ValueError: If non-positive.
-        """
+    @orm_validates("height_cm")
+    def validate_height_cm(self, key: str, value: int | None) -> int | None:
+        """Validator enforcing positive values for ``height_cm``."""
+
         if value is None:
-            self.height_cm = None
-            return
+            return None
+
         if value <= 0:
             raise ValueError("height_cm must be positive.")
-        self.height_cm = value
+
+        return value
+
+    @orm_validates("dominant_hand")
+    def validate_dominant_hand(self, key: str, value: str | None) -> str | None:
+        """Validator ensuring ``dominant_hand`` remains a short, non-empty label."""
+
+        if value is None:
+            return None
+
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("dominant_hand cannot be blank.")
+        if len(cleaned) > 10:
+            raise ValueError("dominant_hand must be 10 characters or fewer.")
+
+        return cleaned
 
 
 class SubjectBodyMetrics(PKMixin, ReprMixin, TimestampMixin, db.Model):
@@ -254,47 +263,38 @@ class SubjectBodyMetrics(PKMixin, ReprMixin, TimestampMixin, db.Model):
     )
 
     # -------------------- Helpers / Validations --------------------
-    def set_weight_kg(self, value: float | None) -> None:
-        """
-        Validate and set ``weight_kg``.
+    @orm_validates("weight_kg")
+    def validate_weight_kg(self, key: str, value: float | None) -> float | None:
+        """Validator ensuring ``weight_kg`` is non-negative."""
 
-        :param value: Weight in kilograms, or ``None``.
-        :type value: float | None
-        :raises ValueError: If negative.
-        """
         if value is None:
-            self.weight_kg = None
-            return
+            return None
+
         if value < 0:
             raise ValueError("weight_kg cannot be negative.")
-        self.weight_kg = value
 
-    def set_bodyfat_pct(self, value: float | None) -> None:
-        """
-        Validate and set ``bodyfat_pct``.
+        return value
 
-        :param value: Body fat percentage (0..100) or ``None``.
-        :type value: float | None
-        :raises ValueError: If outside [0, 100].
-        """
+    @orm_validates("bodyfat_pct")
+    def validate_bodyfat_pct(self, key: str, value: float | None) -> float | None:
+        """Validator ensuring ``bodyfat_pct`` remains within [0, 100]."""
+
         if value is None:
-            self.bodyfat_pct = None
-            return
+            return None
+
         if value < 0 or value > 100:
             raise ValueError("bodyfat_pct must be within [0, 100].")
-        self.bodyfat_pct = value
 
-    def set_resting_hr(self, value: int | None) -> None:
-        """
-        Validate and set ``resting_hr``.
+        return value
 
-        :param value: Resting heart rate in bpm or ``None``.
-        :type value: int | None
-        :raises ValueError: If non-positive.
-        """
+    @orm_validates("resting_hr")
+    def validate_resting_hr(self, key: str, value: int | None) -> int | None:
+        """Validator enforcing positive values for ``resting_hr``."""
+
         if value is None:
-            self.resting_hr = None
-            return
+            return None
+
         if value <= 0:
             raise ValueError("resting_hr must be positive.")
-        self.resting_hr = value
+
+        return value
