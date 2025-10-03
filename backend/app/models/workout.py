@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import (
-    Date,
+    DateTime,
     Enum,
     ForeignKey,
     Index,
@@ -43,7 +44,7 @@ class WorkoutSession(PKMixin, TimestampMixin, ReprMixin, db.Model):
     subject_id: Mapped[int] = mapped_column(
         ForeignKey("subjects.id", ondelete="CASCADE"), nullable=False
     )
-    workout_date: Mapped[Any] = mapped_column(Date, nullable=False)
+    workout_date: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     status: Mapped[str] = mapped_column(WorkoutStatus, nullable=False, server_default="PENDING")
 
     # Optional link to routine day (must belong to same subject via routine)

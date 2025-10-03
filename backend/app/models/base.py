@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from datetime import datetime
 
 from sqlalchemy import DateTime, Integer, func
 from sqlalchemy.orm import Mapped, mapped_column
@@ -21,16 +21,16 @@ class TimestampMixin:
         Timezone-aware timestamp refreshed by the database on update.
     """
 
-    created_at: Mapped[Any] = mapped_column(
-        DateTime(timezone=True),
-        nullable=False,
-        server_default=func.now(),  # DB-side default (UTC if DB is UTC)
-    )
-    updated_at: Mapped[Any] = mapped_column(
+    created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
         server_default=func.now(),
-        onupdate=func.now(),  # DB-side onupdate
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
     )
 
 

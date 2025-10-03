@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     Boolean,
@@ -58,7 +59,7 @@ class ExerciseSetLog(PKMixin, TimestampMixin, ReprMixin, db.Model):
     )
 
     # --- Timing & ordering ---
-    performed_at: Mapped[Any] = mapped_column(DateTime(timezone=True), nullable=False)
+    performed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     set_index: Mapped[int] = mapped_column(Integer, nullable=False)
     is_warmup: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
     to_failure: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
@@ -99,7 +100,6 @@ class ExerciseSetLog(PKMixin, TimestampMixin, ReprMixin, db.Model):
         "RoutineExerciseSet", passive_deletes=True, lazy="selectin"
     )
 
-    # ---------------- Validation (id-based; triggers on flush/commit) ----------------
     # ---------------- Validation (id-based; triggers on flush/commit) ----------------
     @validates("session_id")
     def _validate_subject_matches_session_id(self, key: str, value: int | None) -> int | None:

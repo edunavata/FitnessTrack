@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     Boolean,
-    Date,
     ForeignKey,
     Index,
     Integer,
@@ -45,7 +44,7 @@ class Routine(PKMixin, TimestampMixin, ReprMixin, db.Model):
     )
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
-    starts_on: Mapped[Any | None] = mapped_column(Date)
+
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
 
     __table_args__ = (

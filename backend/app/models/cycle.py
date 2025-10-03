@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from datetime import date
+from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     CheckConstraint,
@@ -56,8 +57,8 @@ class Cycle(PKMixin, TimestampMixin, ReprMixin, db.Model):
     )
     cycle_number: Mapped[int] = mapped_column(Integer, nullable=False)
 
-    started_on: Mapped[Any | None] = mapped_column(Date)
-    ended_on: Mapped[Any | None] = mapped_column(Date)
+    started_on: Mapped[date | None] = mapped_column(Date)
+    ended_on: Mapped[date | None] = mapped_column(Date)
     notes: Mapped[str | None] = mapped_column(Text)
 
     __table_args__ = (
