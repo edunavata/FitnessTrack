@@ -1049,14 +1049,20 @@ def seed_routines_cycles_workouts(
     with session.begin():
         subject_lookup: dict[str, Subject] = {}
         for fixture in SUBJECT_FIXTURES:
+            subject_key_value = fixture.get("key")
+            if not isinstance(subject_key_value, str):
+                raise RuntimeError("Subject fixture missing key identifier")
             pseudonym = UUID(str(fixture["pseudonym"]))
             subject = session.execute(
                 select(Subject).filter_by(pseudonym=pseudonym)
             ).scalar_one_or_none()
             if subject is not None:
-                subject_lookup[fixture["key"]] = subject
+                subject_lookup[subject_key_value] = subject
         missing = [
-            fixture["key"] for fixture in SUBJECT_FIXTURES if fixture["key"] not in subject_lookup
+            key
+            for fixture in SUBJECT_FIXTURES
+            for key in [fixture.get("key")]
+            if isinstance(key, str) and key not in subject_lookup
         ]
         if missing:
             raise RuntimeError(f"Subjects missing before routine seeding: {missing}")
