@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
+    CheckConstraint,
     Date,
     ForeignKey,
     Index,
@@ -16,11 +17,9 @@ from sqlalchemy import (
     String,
     UniqueConstraint,
 )
-from sqlalchemy import (
-    Enum as SAEnum,
-)
+from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
 from app.core.extensions import db
 
@@ -100,7 +99,6 @@ class Subject(PKMixin, ReprMixin, TimestampMixin, db.Model):
         passive_deletes=True,
         lazy="selectin",
     )
-
     exercise_logs: Mapped[list[ExerciseSetLog]] = relationship(
         "ExerciseSetLog",
         back_populates="subject",
@@ -149,8 +147,9 @@ class SubjectProfile(PKMixin, ReprMixin, TimestampMixin, db.Model):
 
     __tablename__ = "subject_profiles"
 
+    # Remove unique=True here to avoid duplicate UNIQUE with __table_args__
     subject_id: Mapped[int] = mapped_column(
-        ForeignKey("subjects.id", ondelete="CASCADE"), nullable=False, unique=True
+        ForeignKey("subjects.id", ondelete="CASCADE"), nullable=False
     )
     sex: Mapped[SexEnum | None] = mapped_column(
         SAEnum(SexEnum, name="enum_sex", native_enum=True, create_constraint=True),
@@ -165,49 +164,53 @@ class SubjectProfile(PKMixin, ReprMixin, TimestampMixin, db.Model):
     __table_args__ = (
         UniqueConstraint("subject_id", name="uq_subject_profiles_subject"),
         Index("ix_subject_profiles_subject_id", "subject_id"),
+        # Portable DB-level checks (SQLite/PostgreSQL).
+        # Upper-bound year handled in Python validator.
+        CheckConstraint(
+            "(birth_year IS NULL) OR (birth_year >= 1900)",
+            name="ck_subject_profiles_birth_year_range",
+        ),
+        CheckConstraint(
+            "(height_cm IS NULL) OR (height_cm > 0)",
+            name="ck_subject_profiles_height_positive",
+        ),
+        CheckConstraint(
+            "(dominant_hand IS NULL) OR (length(dominant_hand) <= 10)",
+            name="ck_subject_profiles_dominant_hand_len",
+        ),
     )
 
-    # -------------------- Validators --------------------
-    @staticmethod
-    def _current_year() -> int:
-        """Return current year as integer."""
-        return date.today().year
-
-    @property
-    def _min_birth_year(self) -> int:
-        """Minimum allowed birth year for sanity checks."""
-        return 1900
-
-    def set_birth_year(self, value: int | None) -> None:
-        """
-        Validate and set ``birth_year``.
-
-        :param value: Year or ``None`` to unset.
-        :type value: int | None
-        :raises ValueError: If outside sanity range.
-        """
+    # -------------------- Validators (intercept any assignment) --------------------
+    @validates("birth_year")
+    def _validate_birth_year(self, key: str, value: int | None) -> int | None:
+        """Validate birth year against a sane range (upper bound handled here for portability)."""
         if value is None:
-            self.birth_year = None
-            return
-        cy = self._current_year()
-        if value < self._min_birth_year or value > cy:
+            return None
+        current_year = date.today().year
+        if value < 1900 or value > current_year:
             raise ValueError("birth_year out of allowed range.")
-        self.birth_year = value
+        return value
 
-    def set_height_cm(self, value: int | None) -> None:
-        """
-        Validate and set ``height_cm``.
-
-        :param value: Height in centimeters or ``None``.
-        :type value: int | None
-        :raises ValueError: If non-positive.
-        """
+    @validates("height_cm")
+    def _validate_height_cm(self, key: str, value: int | None) -> int | None:
+        """Ensure height is positive when present."""
         if value is None:
-            self.height_cm = None
-            return
+            return None
         if value <= 0:
             raise ValueError("height_cm must be positive.")
-        self.height_cm = value
+        return value
+
+    @validates("dominant_hand")
+    def _validate_dominant_hand(self, key: str, value: str | None) -> str | None:
+        """Trim and bound dominant_hand length."""
+        if value is None:
+            return None
+        v = value.strip()
+        if not v:
+            return None  # treat empty/whitespace as NULL
+        if len(v) > 10:
+            raise ValueError("dominant_hand must be at most 10 characters.")
+        return v
 
 
 class SubjectBodyMetrics(PKMixin, ReprMixin, TimestampMixin, db.Model):
@@ -223,12 +226,12 @@ class SubjectBodyMetrics(PKMixin, ReprMixin, TimestampMixin, db.Model):
         FK to :class:`Subject`. ``ON DELETE CASCADE``.
     measured_on : date
         Measurement date. Required and unique with subject_id.
-    weight_kg : Decimal | None
-        Optional weight (kg).
-    bodyfat_pct : Decimal | None
-        Optional body fat percentage (0..100 with one decimal as per schema).
+    weight_kg : float | None
+        Optional weight (kg). Non-negative if present.
+    bodyfat_pct : float | None
+        Optional body fat percentage in [0, 100].
     resting_hr : int | None
-        Optional resting heart rate (bpm).
+        Optional resting heart rate (bpm). Positive if present.
     notes : str | None
         Free-form notes.
     """
@@ -240,6 +243,7 @@ class SubjectBodyMetrics(PKMixin, ReprMixin, TimestampMixin, db.Model):
     )
     measured_on: Mapped[date] = mapped_column(Date, nullable=False)
 
+    # Use float runtime (asdecimal=False) while keeping DB NUMERIC precision.
     weight_kg: Mapped[float | None] = mapped_column(Numeric(5, 2, asdecimal=False), nullable=True)
     bodyfat_pct: Mapped[float | None] = mapped_column(Numeric(4, 1, asdecimal=False), nullable=True)
     resting_hr: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -251,50 +255,45 @@ class SubjectBodyMetrics(PKMixin, ReprMixin, TimestampMixin, db.Model):
         UniqueConstraint("subject_id", "measured_on", name="uq_sbm_subject_day"),
         Index("ix_sbm_subject_id", "subject_id"),
         Index("ix_sbm_measured_on", "measured_on"),
+        # DB-level checks mirroring Python validators:
+        CheckConstraint(
+            "(weight_kg IS NULL) OR (weight_kg >= 0)",
+            name="ck_sbm_weight_nonnegative",
+        ),
+        CheckConstraint(
+            "(bodyfat_pct IS NULL) OR (bodyfat_pct >= 0 AND bodyfat_pct <= 100)",
+            name="ck_sbm_bodyfat_pct_range",
+        ),
+        CheckConstraint(
+            "(resting_hr IS NULL) OR (resting_hr > 0)",
+            name="ck_sbm_resting_hr_positive",
+        ),
     )
 
-    # -------------------- Helpers / Validations --------------------
-    def set_weight_kg(self, value: float | None) -> None:
-        """
-        Validate and set ``weight_kg``.
-
-        :param value: Weight in kilograms, or ``None``.
-        :type value: float | None
-        :raises ValueError: If negative.
-        """
+    # -------------------- Validators (intercept any assignment) --------------------
+    @validates("weight_kg")
+    def _validate_weight_kg(self, key: str, value: float | None) -> float | None:
+        """Ensure weight is non-negative when present."""
         if value is None:
-            self.weight_kg = None
-            return
+            return None
         if value < 0:
             raise ValueError("weight_kg cannot be negative.")
-        self.weight_kg = value
+        return float(value)
 
-    def set_bodyfat_pct(self, value: float | None) -> None:
-        """
-        Validate and set ``bodyfat_pct``.
-
-        :param value: Body fat percentage (0..100) or ``None``.
-        :type value: float | None
-        :raises ValueError: If outside [0, 100].
-        """
+    @validates("bodyfat_pct")
+    def _validate_bodyfat_pct(self, key: str, value: float | None) -> float | None:
+        """Ensure body fat percentage is within [0, 100] when present."""
         if value is None:
-            self.bodyfat_pct = None
-            return
+            return None
         if value < 0 or value > 100:
             raise ValueError("bodyfat_pct must be within [0, 100].")
-        self.bodyfat_pct = value
+        return float(value)
 
-    def set_resting_hr(self, value: int | None) -> None:
-        """
-        Validate and set ``resting_hr``.
-
-        :param value: Resting heart rate in bpm or ``None``.
-        :type value: int | None
-        :raises ValueError: If non-positive.
-        """
+    @validates("resting_hr")
+    def _validate_resting_hr(self, key: str, value: int | None) -> int | None:
+        """Ensure resting heart rate is positive when present."""
         if value is None:
-            self.resting_hr = None
-            return
+            return None
         if value <= 0:
             raise ValueError("resting_hr must be positive.")
-        self.resting_hr = value
+        return int(value)

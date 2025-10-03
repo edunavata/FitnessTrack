@@ -12,13 +12,15 @@ from sqlalchemy.exc import IntegrityError
 
 class TestSubjectProfile:
     def test_create_profile_1to1(self, session):
+        # Create subject first so FK exists
         s = Subject()
         session.add(s)
         session.flush()
 
+        # Assign fields directly; validators (@validates) must intercept
         p = SubjectProfile(subject=s, sex=SexEnum.OTHER)
-        p.set_birth_year(2000)
-        p.set_height_cm(175)
+        p.birth_year = 2000
+        p.height_cm = 175
 
         session.add(p)
         session.commit()
@@ -64,19 +66,24 @@ class TestSubjectProfile:
         s = Subject()
         p = SubjectProfile(subject=s)
 
+        # Invalid birth_year (too small)
         with pytest.raises(ValueError):
-            p.set_birth_year(1800)
+            p.birth_year = 1800
 
+        # Invalid birth_year (future)
         with pytest.raises(ValueError):
-            p.set_birth_year(date.today().year + 1)
+            p.birth_year = date.today().year + 1
 
-        p.set_birth_year(None)
+        # None is allowed (unset)
+        p.birth_year = None
         assert p.birth_year is None
 
+        # Non-positive height is invalid
         with pytest.raises(ValueError):
-            p.set_height_cm(0)
+            p.height_cm = 0
 
-        p.set_height_cm(None)
+        # None is allowed (unset)
+        p.height_cm = None
         assert p.height_cm is None
 
 
@@ -109,32 +116,34 @@ class TestSubjectBodyMetrics:
 
         assert session.get(SubjectBodyMetrics, m.id) is None
 
-    def test_setters_validation(self, session):
+    def test_validators_on_assignment(self, session):
+        # Assignments must trigger @validates and raise when invalid
         s = Subject()
         m = SubjectBodyMetrics(subject=s, measured_on=date.today())
 
         with pytest.raises(ValueError):
-            m.set_weight_kg(-1)
+            m.weight_kg = -1
 
         with pytest.raises(ValueError):
-            m.set_bodyfat_pct(-0.1)
+            m.bodyfat_pct = -0.1
 
         with pytest.raises(ValueError):
-            m.set_bodyfat_pct(100.1)
+            m.bodyfat_pct = 100.1
 
         with pytest.raises(ValueError):
-            m.set_resting_hr(0)
+            m.resting_hr = 0
 
-        # valid values
-        m.set_weight_kg(82.3)
-        m.set_bodyfat_pct(12.5)
-        m.set_resting_hr(55)
+        # Valid values
+        m.weight_kg = 82.3
+        m.bodyfat_pct = 12.5
+        m.resting_hr = 55
 
         session.add_all([s, m])
         session.commit()
 
-        assert float(m.weight_kg) == 82.3
-        assert float(m.bodyfat_pct) == 12.5
+        # Use approx for floats (more robust cross-dialect)
+        assert m.weight_kg == pytest.approx(82.3)
+        assert m.bodyfat_pct == pytest.approx(12.5)
         assert m.resting_hr == 55
 
     def test_multiple_days_ok(self, session):
