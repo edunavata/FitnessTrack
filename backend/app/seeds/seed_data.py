@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from datetime import date, datetime, timezone
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
 from uuid import UUID
 
 from flask_sqlalchemy import SQLAlchemy
@@ -824,7 +824,7 @@ EXERCISE_LOG_FIXTURES: list[dict[str, Any]] = [
 
 def _session(database: SQLAlchemy) -> Session:
     """Return the current SQLAlchemy session."""
-    return database.session  # type: ignore[return-value]
+    return cast(Session, database.session)
 
 
 def _touch(summary: dict[str, dict[str, int]], table: str, created: bool) -> None:
@@ -849,7 +849,7 @@ def _get_or_create(
         return instance, False
     params = dict(defaults or {})
     params.update(filters)
-    instance = model(**params)  # type: ignore[arg-type]
+    instance = cast(T, model(**params))
     session.add(instance)
     return instance, True
 
@@ -886,6 +886,9 @@ def seed_users_and_subjects(database: SQLAlchemy, *, verbose: bool = False) -> d
             _touch(summary, "users", created)
 
         for fixture in SUBJECT_FIXTURES:
+            subject_key_value = fixture.get("key")
+            if not isinstance(subject_key_value, str):
+                raise RuntimeError("Subject fixture missing key identifier")
             pseudonym = UUID(str(fixture["pseudonym"]))
             subject = session.execute(select(Subject).filter_by(pseudonym=pseudonym)).scalar_one_or_none()
             created = False
@@ -900,44 +903,50 @@ def seed_users_and_subjects(database: SQLAlchemy, *, verbose: bool = False) -> d
             else:
                 subject.user_id = user.id if user is not None else None
             session.flush()
-            subject_lookup[fixture["key"]] = subject
+            subject_lookup[subject_key_value] = subject
             _touch(summary, "subjects", created)
 
         for profile in SUBJECT_PROFILE_FIXTURES:
-            subject = subject_lookup.get(profile["subject_key"])
+            subject_key_value = profile.get("subject_key")
+            if not isinstance(subject_key_value, str):
+                raise RuntimeError("Subject key missing while creating profile")
+            subject_key = subject_key_value
+            subject = subject_lookup.get(subject_key)
             if subject is None:
-                raise RuntimeError(f"Subject {profile['subject_key']} missing while creating profile")
-            instance = session.execute(
+                raise RuntimeError(f"Subject {subject_key} missing while creating profile")
+            profile_instance = session.execute(
                 select(SubjectProfile).filter_by(subject_id=subject.id)
             ).scalar_one_or_none()
             created = False
-            if instance is None:
-                instance = SubjectProfile(subject_id=subject.id)
-                session.add(instance)
+            if profile_instance is None:
+                profile_instance = SubjectProfile(subject_id=subject.id)
+                session.add(profile_instance)
                 created = True
-            instance.sex = profile.get("sex")
-            instance.birth_year = profile.get("birth_year")
-            instance.height_cm = profile.get("height_cm")
-            instance.dominant_hand = profile.get("dominant_hand")
+            profile_instance.sex = profile.get("sex")
+            profile_instance.birth_year = profile.get("birth_year")
+            profile_instance.height_cm = profile.get("height_cm")
+            profile_instance.dominant_hand = profile.get("dominant_hand")
             session.flush()
             _touch(summary, "subject_profiles", created)
 
         for metrics in BODY_METRICS_FIXTURES:
-            subject = subject_lookup.get(metrics["subject_key"])
+            subject_key_value = metrics.get("subject_key")
+            if not isinstance(subject_key_value, str):
+                raise RuntimeError("Subject key missing while creating body metrics")
+            subject_key = subject_key_value
+            subject = subject_lookup.get(subject_key)
             if subject is None:
-                raise RuntimeError(
-                    f"Subject {metrics['subject_key']} missing while creating body metrics"
-                )
-            instance, created = _get_or_create(
+                raise RuntimeError(f"Subject {subject_key} missing while creating body metrics")
+            metrics_instance, created = _get_or_create(
                 session,
                 SubjectBodyMetrics,
                 subject_id=subject.id,
                 measured_on=metrics["measured_on"],
             )
-            instance.weight_kg = metrics.get("weight_kg")
-            instance.bodyfat_pct = metrics.get("bodyfat_pct")
-            instance.resting_hr = metrics.get("resting_hr")
-            instance.notes = metrics.get("notes")
+            metrics_instance.weight_kg = metrics.get("weight_kg")
+            metrics_instance.bodyfat_pct = metrics.get("bodyfat_pct")
+            metrics_instance.resting_hr = metrics.get("resting_hr")
+            metrics_instance.notes = metrics.get("notes")
             session.flush()
             _touch(summary, "subject_body_metrics", created)
 
@@ -953,8 +962,8 @@ def seed_core_taxonomies(database: SQLAlchemy, *, verbose: bool = False) -> dict
     with session.begin():
         tag_lookup: dict[str, Tag] = {}
         for name in TAG_NAMES:
-            tag, created = _get_or_create(session, Tag, name=name)
-            tag_lookup[name] = tag
+            tag_instance, created = _get_or_create(session, Tag, name=name)
+            tag_lookup[name] = tag_instance
             _touch(summary, "tags", created)
 
         for exercise_data in EXERCISE_FIXTURES:
@@ -1005,14 +1014,14 @@ def seed_core_taxonomies(database: SQLAlchemy, *, verbose: bool = False) -> dict
                 _touch(summary, "exercise_secondary_muscles", secondary_created)
 
             for tag_name in exercise_data.get("tags", []):
-                tag = tag_lookup.get(tag_name)
-                if tag is None:
+                tag_record = tag_lookup.get(tag_name)
+                if tag_record is None:
                     continue
                 _, link_created = _get_or_create(
                     session,
                     ExerciseTag,
                     exercise_id=exercise.id,
-                    tag_id=tag.id,
+                    tag_id=tag_record.id,
                 )
                 _touch(summary, "exercise_tags", link_created)
 
@@ -1190,8 +1199,11 @@ def seed_routines_cycles_workouts(
         session_lookup: dict[tuple[str, datetime], WorkoutSession] = {}
         for workout_data in WORKOUT_FIXTURES:
             subject = subject_lookup[workout_data["subject_key"]]
-            routine_day = routine_day_lookup.get(
-                (workout_data["routine_key"], workout_data.get("routine_day_index"))
+            routine_day_index = workout_data.get("routine_day_index")
+            routine_day = (
+                routine_day_lookup.get((workout_data["routine_key"], routine_day_index))
+                if routine_day_index is not None
+                else None
             )
             cycle = cycle_lookup.get(
                 (
@@ -1252,14 +1264,26 @@ def seed_routines_cycles_workouts(
                 log.session_id = workout.id if workout is not None else None
             planned = log_data.get("planned_set")
             if isinstance(planned, dict):
-                planned_key = (
+                planned_key_parts = (
                     planned.get("routine_key"),
                     planned.get("routine_day_index"),
                     planned.get("exercise_slug"),
                     planned.get("set_index"),
                 )
-                planned_set = routine_set_lookup.get(planned_key)
-                log.planned_set_id = planned_set.id if planned_set is not None else None
+                if all(part is not None for part in planned_key_parts):
+                    planned_key = cast(
+                        tuple[str, int, str, int],
+                        (
+                            planned_key_parts[0],
+                            planned_key_parts[1],
+                            planned_key_parts[2],
+                            planned_key_parts[3],
+                        ),
+                    )
+                    planned_set = routine_set_lookup.get(planned_key)
+                    log.planned_set_id = planned_set.id if planned_set is not None else None
+                else:
+                    log.planned_set_id = None
             log.actual_weight_kg = log_data.get("actual_weight_kg")
             log.actual_reps = log_data.get("actual_reps")
             log.actual_rir = log_data.get("actual_rir")
