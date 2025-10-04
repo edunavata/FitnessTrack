@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from collections.abc import Mapping, Sequence
+from datetime import UTC, datetime
 from types import SimpleNamespace
-from typing import Mapping, Sequence
 
 from sqlalchemy.orm import Session
 
@@ -29,7 +29,7 @@ class RoutineRepository:
     def create(self, session: Session, data: Mapping[str, object]) -> SimpleNamespace:
         """Return a mock routine record."""
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         return SimpleNamespace(
             id=0,
             owner_subject_id=data.get("owner_subject_id"),

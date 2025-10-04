@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from collections.abc import Mapping, Sequence
+from datetime import UTC, datetime
 from types import SimpleNamespace
-from typing import Mapping, Sequence
 from uuid import uuid4
 
 from sqlalchemy.orm import Session
@@ -30,7 +30,7 @@ class SubjectRepository:
     def create(self, session: Session, data: Mapping[str, object]) -> SimpleNamespace:
         """Return a mock subject record."""
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         return SimpleNamespace(
             id=0,
             user_id=data.get("user_id"),

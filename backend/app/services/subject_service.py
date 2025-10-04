@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Mapping, TYPE_CHECKING
+from collections.abc import Mapping
+from typing import TYPE_CHECKING
 
 from app.repositories import SubjectRepository
 
@@ -19,7 +20,7 @@ class SubjectService:
         self.session = get_session(session)
         self.repo = SubjectRepository()
 
-    def list_subjects(self, filters: Mapping[str, object], pagination: "Pagination"):
+    def list_subjects(self, filters: Mapping[str, object], pagination: Pagination):
         """Return placeholder subjects filtered according to request parameters."""
 
         return self.repo.query(

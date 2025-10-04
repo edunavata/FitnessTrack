@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Mapping, TYPE_CHECKING
+from collections.abc import Mapping
+from typing import TYPE_CHECKING
 
 from app.repositories import UserRepository
 
@@ -19,7 +20,7 @@ class UserService:
         self.session = get_session(session)
         self.repo = UserRepository()
 
-    def list_users(self, filters: Mapping[str, object], pagination: "Pagination"):
+    def list_users(self, filters: Mapping[str, object], pagination: Pagination):
         """Return a placeholder list of users and total count.
 
         TODO

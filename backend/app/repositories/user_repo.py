@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from collections.abc import Mapping, Sequence
+from datetime import UTC, datetime
 from types import SimpleNamespace
-from typing import Mapping, Sequence
 
 from sqlalchemy.orm import Session
 
@@ -29,7 +29,7 @@ class UserRepository:
     def create(self, session: Session, data: Mapping[str, object]) -> SimpleNamespace:
         """Return a mock user instance based on the provided payload."""
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         return SimpleNamespace(
             id=0,
             email=data.get("email"),

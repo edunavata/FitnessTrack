@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from collections.abc import Mapping
+from datetime import UTC, datetime
 from types import SimpleNamespace
-from typing import Mapping
 from uuid import uuid4
 
 from app.repositories import UserRepository
@@ -43,7 +43,7 @@ class AuthService:
 
         # TODO: Validate credentials against persisted users.
         token = uuid4().hex
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         user = SimpleNamespace(
             id=0,
             email=email,
@@ -67,7 +67,7 @@ class AuthService:
         except (TypeError, ValueError):
             numeric_id = 0
         email = f"user{numeric_id}@example.com"
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         return SimpleNamespace(
             id=numeric_id,
             email=email,

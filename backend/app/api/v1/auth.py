@@ -34,7 +34,7 @@ token_schema = TokenResponseSchema()
 
 
 def _login_rate_limit() -> str:
-    return current_app.config.get("AUTH_LOGIN_RATE_LIMIT", "5 per minute")
+    return str(current_app.config.get("AUTH_LOGIN_RATE_LIMIT", "5 per minute"))
 
 
 @bp.post("/register")

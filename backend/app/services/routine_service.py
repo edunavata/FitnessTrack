@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Mapping, TYPE_CHECKING
+from collections.abc import Mapping
+from typing import TYPE_CHECKING
 
 from app.repositories import RoutineRepository
 
@@ -19,7 +20,7 @@ class RoutineService:
         self.session = get_session(session)
         self.repo = RoutineRepository()
 
-    def list_routines(self, filters: Mapping[str, object], pagination: "Pagination"):
+    def list_routines(self, filters: Mapping[str, object], pagination: Pagination):
         """Return placeholder routines filtered according to request parameters."""
 
         return self.repo.query(
