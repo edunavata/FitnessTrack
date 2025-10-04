@@ -8,6 +8,7 @@ from app.repositories.tag import TagRepository
 
 class TestTagRepository:
     """Confirm ``TagRepository`` ensures unique names and whitelisted updates."""
+
     @pytest.fixture()
     def repo(self) -> TagRepository:
         return TagRepository()

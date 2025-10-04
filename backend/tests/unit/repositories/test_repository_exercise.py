@@ -9,6 +9,7 @@ from tests.factories.exercise import ExerciseFactory  # you already have it
 
 class TestExerciseRepository:
     """Verify ``ExerciseRepository`` CRUD helpers and tag workflows."""
+
     @pytest.fixture()
     def repo(self) -> ExerciseRepository:
         return ExerciseRepository()

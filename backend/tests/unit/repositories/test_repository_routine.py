@@ -16,6 +16,7 @@ UTC = UTC
 
 class TestRoutineRepository:
     """Ensure ``RoutineRepository`` handles nested structures consistently."""
+
     @pytest.fixture()
     def repo(self) -> RoutineRepository:
         return RoutineRepository()
@@ -104,6 +105,7 @@ class TestRoutineRepository:
 
 class TestSubjectRoutineRepository:
     """Verify ``SubjectRoutineRepository`` manages saved routines idempotently."""
+
     @pytest.fixture()
     def repo(self) -> SubjectRoutineRepository:
         return SubjectRoutineRepository()

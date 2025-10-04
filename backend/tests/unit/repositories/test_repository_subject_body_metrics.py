@@ -30,6 +30,7 @@ def _patch_apply_sorting(monkeypatch):
 
 class TestSubjectBodyMetricsRepository:
     """Check range queries, pagination, and upsert semantics for body metrics."""
+
     def test_list_for_subject_applies_date_bounds_and_sorting(self, session):
         """List metrics within date bounds sorted descending by measurement date."""
         subject = SubjectFactory()

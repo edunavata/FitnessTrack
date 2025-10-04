@@ -16,6 +16,7 @@ UTC = UTC
 
 class TestWorkoutSessionRepository:
     """Validate session creation, updates, and deterministic listings."""
+
     @pytest.fixture()
     def repo(self) -> WorkoutSessionRepository:
         return WorkoutSessionRepository()

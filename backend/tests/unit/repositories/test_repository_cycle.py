@@ -14,6 +14,7 @@ from tests.factories.subject import SubjectFactory
 
 class TestCycleRepository:
     """Validate ``CycleRepository`` behaviours for numbering and listings."""
+
     @pytest.fixture()
     def repo(self) -> CycleRepository:
         return CycleRepository()

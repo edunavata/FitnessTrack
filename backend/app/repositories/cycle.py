@@ -63,9 +63,7 @@ class CycleRepository(BaseRepository[Cycle]):
         return stmt
 
     # ----------------------------- Lookups ------------------------------------
-    def get_by_unique(
-        self, subject_id: int, routine_id: int, cycle_number: int
-    ) -> Cycle | None:
+    def get_by_unique(self, subject_id: int, routine_id: int, cycle_number: int) -> Cycle | None:
         """Return a cycle identified by its composite unique key.
 
         :param subject_id: Identifier of the owning subject.

@@ -9,6 +9,7 @@ from tests.factories.exercise import ExerciseFactory
 
 class TestExerciseSecondaryMuscles:
     """Exercise secondary muscle operations remain idempotent and sorted."""
+
     @pytest.fixture()
     def repo(self) -> ExerciseRepository:
         return ExerciseRepository()

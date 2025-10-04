@@ -7,6 +7,7 @@ from tests.factories.user import UserFactory
 
 class TestUserRepository:
     """Ensure ``UserRepository`` performs core persistence operations."""
+
     @pytest.fixture()
     def repo(self):
         return UserRepository()

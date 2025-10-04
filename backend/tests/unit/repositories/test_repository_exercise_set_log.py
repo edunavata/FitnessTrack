@@ -16,6 +16,7 @@ UTC = UTC
 
 class TestExerciseSetLogRepository:
     """Validate persistence patterns for exercise set logs."""
+
     @pytest.fixture()
     def repo(self) -> ExerciseSetLogRepository:
         return ExerciseSetLogRepository()

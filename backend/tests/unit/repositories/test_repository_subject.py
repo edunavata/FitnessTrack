@@ -12,6 +12,7 @@ from tests.factories.subject import SubjectFactory, SubjectProfileFactory
 
 class TestSubjectRepository:
     """Ensure ``SubjectRepository`` handles lookups and profile management."""
+
     def test_get_by_user_id_eagerloads_profile(self, session):
         """Fetch a subject by user id and confirm profile eager loading."""
         profile = SubjectProfileFactory()
