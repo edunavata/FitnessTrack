@@ -1,4 +1,12 @@
-# backend/app/repositories/workout.py
+"""Workout session repository exposing persistence-focused helpers.
+
+The :class:`WorkoutSessionRepository` extends
+:class:`~app.repositories.base.BaseRepository` to manage
+:class:`app.models.workout.WorkoutSession`. It focuses on deterministic
+pagination, range queries and safe updates, leaving transactions to the service
+layer.
+"""
+
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
@@ -14,11 +22,12 @@ from app.repositories.base import BaseRepository, Page, Pagination, paginate_sel
 
 
 class WorkoutSessionRepository(BaseRepository[WorkoutSession]):
-    """
-    Persistence-only repository for :class:`WorkoutSession`.
+    """Persist :class:`WorkoutSession` rows and expose range/listing helpers.
 
-    Clave única: (subject_id, workout_date).
-    Incluye consultas por sujeto + rango de fechas, por ciclo, y utilidades de estado.
+    The repository honours the logical unique key ``(subject_id, workout_date)``
+    and provides convenience methods for deterministic queries by subject,
+    cycle and date range. Eager loading defaults remain lean to avoid excessive
+    joins; services orchestrate transactions and business rules.
     """
 
     model = WorkoutSession
@@ -44,7 +53,7 @@ class WorkoutSessionRepository(BaseRepository[WorkoutSession]):
         }
 
     def _updatable_fields(self) -> set[str]:
-        # Campos mutables. No permitimos cambiar subject_id ni workout_date (clave lógica).
+        # Do not allow updates to the logical unique key (subject_id, workout_date).
         return {
             "status",
             "cycle_id",
@@ -57,11 +66,20 @@ class WorkoutSessionRepository(BaseRepository[WorkoutSession]):
 
     # ---------------------------- Eager loading ----------------------------
     def _default_eagerload(self, stmt: Select[Any]) -> Select[Any]:
-        # El modelo ya usa lazy="selectin" en relaciones; mantener liviano.
+        # Relationships already use ``lazy="selectin"`` on the mapper; keep lean.
         return stmt
 
     # ---------------------------- Lookups ----------------------------
     def get_by_unique(self, subject_id: int, workout_date: datetime) -> WorkoutSession | None:
+        """Return a session identified by the logical unique key.
+
+        :param subject_id: Identifier of the subject.
+        :type subject_id: int
+        :param workout_date: Datetime representing the scheduled workout date.
+        :type workout_date: datetime.datetime
+        :returns: Matching session or ``None`` when absent.
+        :rtype: WorkoutSession | None
+        """
         stmt = select(self.model).where(
             and_(self.model.subject_id == subject_id, self.model.workout_date == workout_date)
         )
@@ -84,8 +102,33 @@ class WorkoutSessionRepository(BaseRepository[WorkoutSession]):
         notes: str | None = None,
         flush: bool = True,
     ) -> WorkoutSession:
-        """
-        Crea una sesión nueva. Valida automáticamente el ciclo vía @validates del modelo.
+        """Create and stage a new workout session.
+
+        Assignment triggers SQLAlchemy validators (e.g., cycle subject matching)
+        defined on the model.
+
+        :param subject_id: Identifier of the subject.
+        :type subject_id: int
+        :param workout_date: Datetime representing the scheduled workout date.
+        :type workout_date: datetime.datetime
+        :param status: Optional explicit status; defaults to ``"PENDING"``.
+        :type status: str | None
+        :param routine_day_id: Optional link to a planned routine day.
+        :type routine_day_id: int | None
+        :param cycle_id: Optional training cycle association.
+        :type cycle_id: int | None
+        :param location: Optional location string.
+        :type location: str | None
+        :param perceived_fatigue: Optional fatigue indicator.
+        :type perceived_fatigue: int | None
+        :param bodyweight_kg: Optional body weight measurement.
+        :type bodyweight_kg: float | None
+        :param notes: Optional free-form notes.
+        :type notes: str | None
+        :param flush: Whether to flush the session after staging the row.
+        :type flush: bool
+        :returns: The staged :class:`WorkoutSession` entity.
+        :rtype: WorkoutSession
         """
         row = self.model(
             subject_id=subject_id,
@@ -118,9 +161,33 @@ class WorkoutSessionRepository(BaseRepository[WorkoutSession]):
         notes: str | None = None,
         flush: bool = True,
     ) -> WorkoutSession:
-        """
-        Inserta o actualiza por la clave única (subject_id, workout_date).
-        Las claves lógicas no cambian; solo asigna campos no-None.
+        """Insert or update a session by ``(subject_id, workout_date)``.
+
+        Logical key fields remain immutable; only provided non-``None`` values
+        are assigned.
+
+        :param subject_id: Identifier of the subject.
+        :type subject_id: int
+        :param workout_date: Datetime representing the scheduled workout date.
+        :type workout_date: datetime.datetime
+        :param status: Optional status to set.
+        :type status: str | None
+        :param routine_day_id: Optional link to a planned routine day.
+        :type routine_day_id: int | None
+        :param cycle_id: Optional training cycle association.
+        :type cycle_id: int | None
+        :param location: Optional location string.
+        :type location: str | None
+        :param perceived_fatigue: Optional fatigue indicator.
+        :type perceived_fatigue: int | None
+        :param bodyweight_kg: Optional body weight measurement.
+        :type bodyweight_kg: float | None
+        :param notes: Optional free-form notes.
+        :type notes: str | None
+        :param flush: Whether to flush the session after mutation.
+        :type flush: bool
+        :returns: The inserted or updated :class:`WorkoutSession` entity.
+        :rtype: WorkoutSession
         """
         row = self.get_by_unique(subject_id, workout_date)
         if row is None:
@@ -160,8 +227,17 @@ class WorkoutSessionRepository(BaseRepository[WorkoutSession]):
     def attach_to_cycle(
         self, ws_id: int, cycle_id: int | None, *, flush: bool = True
     ) -> WorkoutSession:
-        """
-        Asocia/desasocia una sesión a un ciclo. Valida subject_id vía @validates.
+        """Associate or detach a session from a cycle.
+
+        :param ws_id: Identifier of the workout session.
+        :type ws_id: int
+        :param cycle_id: Cycle identifier to attach or ``None`` to detach.
+        :type cycle_id: int | None
+        :param flush: Whether to flush the session after mutation.
+        :type flush: bool
+        :returns: The mutated session instance.
+        :rtype: WorkoutSession
+        :raises ValueError: If the session does not exist.
         """
         row = self.get(ws_id)
         if not row:
@@ -170,7 +246,16 @@ class WorkoutSessionRepository(BaseRepository[WorkoutSession]):
         return row
 
     def mark_completed(self, ws_id: int, *, flush: bool = True) -> WorkoutSession:
-        """Marca la sesión como COMPLETED."""
+        """Mark the session status as ``"COMPLETED"``.
+
+        :param ws_id: Identifier of the workout session.
+        :type ws_id: int
+        :param flush: Whether to flush the session after mutation.
+        :type flush: bool
+        :returns: The mutated session instance.
+        :rtype: WorkoutSession
+        :raises ValueError: If the session does not exist.
+        """
         row = self.get(ws_id)
         if not row:
             raise ValueError(f"WorkoutSession {ws_id} not found.")
@@ -188,8 +273,22 @@ class WorkoutSessionRepository(BaseRepository[WorkoutSession]):
         limit: int | None = None,
         offset: int | None = None,
     ) -> list[WorkoutSession]:
-        """
-        Lista sesiones por sujeto y rango de fechas (workout_date, inclusive).
+        """List sessions for a subject with an optional date range.
+
+        :param subject_id: Identifier of the subject.
+        :type subject_id: int
+        :param date_from: Inclusive lower bound for ``workout_date`` (date component).
+        :type date_from: datetime.date | None
+        :param date_to: Inclusive upper bound for ``workout_date`` (date component).
+        :type date_to: datetime.date | None
+        :param sort: Public sort tokens processed through the whitelist.
+        :type sort: Iterable[str] | None
+        :param limit: Optional limit for manual pagination.
+        :type limit: int | None
+        :param offset: Optional offset for manual pagination.
+        :type offset: int | None
+        :returns: Ordered list of sessions.
+        :rtype: list[WorkoutSession]
         """
         stmt: Select[Any] = select(self.model).where(self.model.subject_id == subject_id)
 
@@ -222,8 +321,20 @@ class WorkoutSessionRepository(BaseRepository[WorkoutSession]):
         date_to: date | None = None,
         with_total: bool = True,
     ) -> Page[WorkoutSession]:
-        """
-        Pagina sesiones por sujeto (rango de fechas opcional).
+        """Paginate sessions for a subject with optional date filters.
+
+        :param pagination: Pagination parameters and sort tokens.
+        :type pagination: Pagination
+        :param subject_id: Identifier of the subject.
+        :type subject_id: int
+        :param date_from: Inclusive lower bound for ``workout_date`` (date component).
+        :type date_from: datetime.date | None
+        :param date_to: Inclusive upper bound for ``workout_date`` (date component).
+        :type date_to: datetime.date | None
+        :param with_total: Whether to compute the total row count.
+        :type with_total: bool
+        :returns: Page containing sessions and metadata.
+        :rtype: Page[WorkoutSession]
         """
         stmt: Select[Any] = select(self.model).where(self.model.subject_id == subject_id)
 
@@ -253,8 +364,14 @@ class WorkoutSessionRepository(BaseRepository[WorkoutSession]):
     def list_for_cycle(
         self, cycle_id: int, *, sort: Iterable[str] | None = None
     ) -> list[WorkoutSession]:
-        """
-        Lista sesiones que pertenecen a un ciclo.
+        """List sessions that belong to a specific cycle.
+
+        :param cycle_id: Identifier of the cycle.
+        :type cycle_id: int
+        :param sort: Public sort tokens processed through the whitelist.
+        :type sort: Iterable[str] | None
+        :returns: Ordered list of sessions associated with the cycle.
+        :rtype: list[WorkoutSession]
         """
         stmt: Select[Any] = select(self.model).where(self.model.cycle_id == cycle_id)
         stmt = self._default_eagerload(stmt)

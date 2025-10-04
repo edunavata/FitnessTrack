@@ -1,4 +1,11 @@
-# backend/app/repositories/exercise_set_log.py
+"""Exercise set log repository exposing persistence-only operations.
+
+The :class:`ExerciseSetLogRepository` extends the generic
+:class:`~app.repositories.base.BaseRepository` to provide deterministic listing
+and pagination helpers tailored for :class:`app.models.exercise_log.ExerciseSetLog`.
+Business logic and transaction management remain responsibilities of services.
+"""
+
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
@@ -14,14 +21,12 @@ from app.repositories.base import BaseRepository, Page, Pagination, paginate_sel
 
 
 class ExerciseSetLogRepository(BaseRepository[ExerciseSetLog]):
-    """
-    Persistence-only repository for :class:`app.models.exercise_log.ExerciseSetLog`.
+    """Persist :class:`ExerciseSetLog` records and support read patterns.
 
-    - Read patterns: by subject + date range, by session, latest by subject/exercise.
-    - Write patterns: create and upsert by the unique key
-      (subject_id, exercise_id, performed_at, set_index).
-
-    No business rules, no commits; services own transactions.
+    Access helpers stay persistence-focused, offering deterministic pagination
+    and whitelisted sorting while handling the unique constraint on
+    ``(subject_id, exercise_id, performed_at, set_index)``. Services orchestrate
+    transactions and validation.
     """
 
     model = ExerciseSetLog
@@ -109,8 +114,45 @@ class ExerciseSetLogRepository(BaseRepository[ExerciseSetLog]):
         notes: str | None = None,
         flush: bool = True,
     ) -> ExerciseSetLog:
-        """
-        Create a new set log row. Validators on the model are triggered via setattr.
+        """Create and stage a new set log entry.
+
+        Attribute assignment is used so that SQLAlchemy validators on the model
+        are triggered consistently.
+
+        :param subject_id: Identifier of the performing subject.
+        :type subject_id: int
+        :param exercise_id: Identifier of the exercise performed.
+        :type exercise_id: int
+        :param performed_at: Timestamp when the set was performed.
+        :type performed_at: datetime.datetime
+        :param set_index: Ordinal of the set within the session/exercise.
+        :type set_index: int
+        :param session_id: Optional workout session identifier.
+        :type session_id: int | None
+        :param planned_set_id: Optional reference to the planned set.
+        :type planned_set_id: int | None
+        :param is_warmup: Whether the set is a warm-up.
+        :type is_warmup: bool
+        :param to_failure: Whether the set went to failure.
+        :type to_failure: bool
+        :param actual_weight_kg: Actual lifted weight in kilograms.
+        :type actual_weight_kg: float | None
+        :param actual_reps: Actual repetitions performed.
+        :type actual_reps: int | None
+        :param actual_rir: Actual reps-in-reserve.
+        :type actual_rir: int | None
+        :param actual_rpe: Actual rate of perceived exertion.
+        :type actual_rpe: float | None
+        :param actual_tempo: Tempo notation captured for the set.
+        :type actual_tempo: str | None
+        :param actual_rest_s: Rest duration after the set in seconds.
+        :type actual_rest_s: int | None
+        :param notes: Optional free-form notes.
+        :type notes: str | None
+        :param flush: Whether to flush the session after staging the row.
+        :type flush: bool
+        :returns: The staged :class:`ExerciseSetLog` instance.
+        :rtype: ExerciseSetLog
         """
         row = self.model(
             subject_id=subject_id,
@@ -156,10 +198,45 @@ class ExerciseSetLogRepository(BaseRepository[ExerciseSetLog]):
         notes: str | None = None,
         flush: bool = True,
     ) -> ExerciseSetLog:
-        """
-        Insert or update by unique key (subject_id, exercise_id, performed_at, set_index).
+        """Insert or update a set log by its composite unique key.
 
-        Keys are immutable; only non-None updatable fields are assigned.
+        Keys are immutable; only provided non-``None`` fields are assigned on
+        existing rows.
+
+        :param subject_id: Identifier of the performing subject.
+        :type subject_id: int
+        :param exercise_id: Identifier of the exercise performed.
+        :type exercise_id: int
+        :param performed_at: Timestamp when the set was performed.
+        :type performed_at: datetime.datetime
+        :param set_index: Ordinal of the set within the session/exercise.
+        :type set_index: int
+        :param session_id: Optional workout session identifier.
+        :type session_id: int | None
+        :param planned_set_id: Optional reference to the planned set.
+        :type planned_set_id: int | None
+        :param is_warmup: Optional warm-up flag to assign.
+        :type is_warmup: bool | None
+        :param to_failure: Optional failure flag to assign.
+        :type to_failure: bool | None
+        :param actual_weight_kg: Actual lifted weight in kilograms.
+        :type actual_weight_kg: float | None
+        :param actual_reps: Actual repetitions performed.
+        :type actual_reps: int | None
+        :param actual_rir: Actual reps-in-reserve.
+        :type actual_rir: int | None
+        :param actual_rpe: Actual rate of perceived exertion.
+        :type actual_rpe: float | None
+        :param actual_tempo: Tempo notation captured for the set.
+        :type actual_tempo: str | None
+        :param actual_rest_s: Rest duration after the set in seconds.
+        :type actual_rest_s: int | None
+        :param notes: Optional free-form notes.
+        :type notes: str | None
+        :param flush: Whether to flush the session after staging changes.
+        :type flush: bool
+        :returns: The inserted or updated :class:`ExerciseSetLog` instance.
+        :rtype: ExerciseSetLog
         """
         stmt = select(self.model).where(
             and_(
@@ -235,17 +312,35 @@ class ExerciseSetLogRepository(BaseRepository[ExerciseSetLog]):
         limit: int | None = None,
         offset: int | None = None,
     ) -> list[ExerciseSetLog]:
-        """
-        List logs for a subject with optional date range, exercise and session filters.
+        """List logs for a subject with optional filters.
+
+        :param subject_id: Identifier of the subject.
+        :type subject_id: int
+        :param date_from: Inclusive lower bound for ``performed_at`` (date).
+        :type date_from: datetime.date | None
+        :param date_to: Inclusive upper bound for ``performed_at`` (date).
+        :type date_to: datetime.date | None
+        :param exercise_id: Optional exercise filter.
+        :type exercise_id: int | None
+        :param session_id: Optional workout session filter.
+        :type session_id: int | None
+        :param sort: Public sort tokens processed through the whitelist.
+        :type sort: Iterable[str] | None
+        :param limit: Optional limit for manual pagination.
+        :type limit: int | None
+        :param offset: Optional offset for manual pagination.
+        :type offset: int | None
+        :returns: Ordered list of log entries.
+        :rtype: list[ExerciseSetLog]
         """
         stmt: Select[Any] = select(self.model).where(self.model.subject_id == subject_id)
 
         if date_from is not None:
-            # include whole day: convert date->datetime low bound
+            # Include the entire ``date_from`` day by converting to a datetime lower bound
             start_dt = datetime.combine(date_from, datetime.min.time()).astimezone()
             stmt = stmt.where(self.model.performed_at >= start_dt)
         if date_to is not None:
-            # inclusive upper bound for date: next day min - 1ns
+            # Inclusive upper bound by moving to the next day and using < comparison
             next_day = date_to + timedelta(days=1)
             end_dt = datetime.combine(next_day, datetime.min.time()).astimezone()
             stmt = stmt.where(self.model.performed_at < end_dt)
@@ -278,8 +373,24 @@ class ExerciseSetLogRepository(BaseRepository[ExerciseSetLog]):
         session_id: int | None = None,
         with_total: bool = True,
     ) -> Page[ExerciseSetLog]:
-        """
-        Paginate logs for a subject with optional filters and date range.
+        """Paginate logs for a subject with optional filters.
+
+        :param pagination: Pagination parameters and sort tokens.
+        :type pagination: Pagination
+        :param subject_id: Identifier of the subject.
+        :type subject_id: int
+        :param date_from: Inclusive lower bound for ``performed_at`` (date).
+        :type date_from: datetime.date | None
+        :param date_to: Inclusive upper bound for ``performed_at`` (date).
+        :type date_to: datetime.date | None
+        :param exercise_id: Optional exercise filter.
+        :type exercise_id: int | None
+        :param session_id: Optional workout session filter.
+        :type session_id: int | None
+        :param with_total: Whether to compute the total row count.
+        :type with_total: bool
+        :returns: Page with log entries respecting deterministic ordering.
+        :rtype: Page[ExerciseSetLog]
         """
         stmt: Select[Any] = select(self.model).where(self.model.subject_id == subject_id)
 
@@ -318,8 +429,14 @@ class ExerciseSetLogRepository(BaseRepository[ExerciseSetLog]):
     def list_for_session(
         self, session_id: int, *, sort: Iterable[str] | None = None
     ) -> list[ExerciseSetLog]:
-        """
-        List all logs belonging to a given WorkoutSession.
+        """List logs linked to a specific workout session.
+
+        :param session_id: Identifier of the workout session.
+        :type session_id: int
+        :param sort: Public sort tokens processed through the whitelist.
+        :type sort: Iterable[str] | None
+        :returns: Ordered list of log entries.
+        :rtype: list[ExerciseSetLog]
         """
         stmt = select(self.model).where(self.model.session_id == session_id)
         stmt = self._default_eagerload(stmt)
@@ -332,8 +449,14 @@ class ExerciseSetLogRepository(BaseRepository[ExerciseSetLog]):
     def latest_for_subject_exercise(
         self, subject_id: int, exercise_id: int
     ) -> ExerciseSetLog | None:
-        """
-        Return the latest log for a subject/exercise by performed_at DESC, set_index DESC.
+        """Return the most recent log for a subject/exercise pair.
+
+        :param subject_id: Identifier of the subject.
+        :type subject_id: int
+        :param exercise_id: Identifier of the exercise.
+        :type exercise_id: int
+        :returns: Latest log entry or ``None`` when no records exist.
+        :rtype: ExerciseSetLog | None
         """
         stmt = select(self.model).where(
             and_(self.model.subject_id == subject_id, self.model.exercise_id == exercise_id)

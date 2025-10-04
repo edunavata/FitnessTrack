@@ -1,3 +1,5 @@
+"""Unit tests for routine repositories covering days, sets, and saves."""
+
 from __future__ import annotations
 
 from datetime import UTC
@@ -13,11 +15,14 @@ UTC = UTC
 
 
 class TestRoutineRepository:
+    """Ensure ``RoutineRepository`` handles nested structures consistently."""
+
     @pytest.fixture()
     def repo(self) -> RoutineRepository:
         return RoutineRepository()
 
     def test_list_by_owner_and_public(self, repo, session):
+        """List routines by owner and retrieve all public routines."""
         owner = SubjectFactory()
         other = SubjectFactory()
         r1 = RoutineFactory(owner=owner, name="PPL", is_public=True)
@@ -33,6 +38,7 @@ class TestRoutineRepository:
         assert [r.name for r in public] == ["Other", "PPL"]
 
     def test_add_day_auto_index_and_unique(self, repo, session):
+        """Add routine days auto-indexing sequential positions."""
         owner = SubjectFactory()
         r = RoutineFactory(owner=owner, name="Plan A")
         session.add_all([owner, r])
@@ -47,6 +53,7 @@ class TestRoutineRepository:
         assert d3.day_index == 5
 
     def test_add_exercise_to_day_append_position(self, repo, session):
+        """Append exercises to a routine day preserving positional order."""
         owner = SubjectFactory()
         r = RoutineFactory(owner=owner, name="Plan B")
         e1 = ExerciseFactory(name="Bench", slug="bench")
@@ -61,6 +68,7 @@ class TestRoutineRepository:
         assert (de1.position, de2.position) == (1, 2)
 
     def test_upsert_set_insert_then_update(self, repo, session):
+        """Insert a planned set and update it via composite key."""
         owner = SubjectFactory()
         r = RoutineFactory(owner=owner, name="Plan C")
         e = ExerciseFactory(name="Squat", slug="squat")
@@ -81,6 +89,7 @@ class TestRoutineRepository:
         assert s2.to_failure is True
 
     def test_paginate_public(self, repo, session):
+        """Paginate public routines and report deterministic totals."""
         owner = SubjectFactory()
         session.add(owner)
         session.flush()
@@ -95,11 +104,14 @@ class TestRoutineRepository:
 
 
 class TestSubjectRoutineRepository:
+    """Verify ``SubjectRoutineRepository`` manages saved routines idempotently."""
+
     @pytest.fixture()
     def repo(self) -> SubjectRoutineRepository:
         return SubjectRoutineRepository()
 
     def test_save_remove_and_set_active(self, repo, session):
+        """Save a routine, toggle its active flag, and remove it cleanly."""
         s = SubjectFactory()
         r = RoutineFactory(owner=s, name="X", is_public=True)
         other = SubjectFactory()

@@ -1,3 +1,5 @@
+"""Unit tests for secondary muscle helpers in ``ExerciseRepository``."""
+
 from __future__ import annotations
 
 import pytest
@@ -6,11 +8,14 @@ from tests.factories.exercise import ExerciseFactory
 
 
 class TestExerciseSecondaryMuscles:
+    """Exercise secondary muscle operations remain idempotent and sorted."""
+
     @pytest.fixture()
     def repo(self) -> ExerciseRepository:
         return ExerciseRepository()
 
     def test_set_and_list_secondary_muscles(self, repo, session):
+        """Set secondary muscles, deduplicate input, and list the stored set."""
         ex = ExerciseFactory(name="Bench Press", slug="bench-press")
         session.add(ex)
         session.flush()
@@ -28,6 +33,7 @@ class TestExerciseSecondaryMuscles:
         assert set(repo.list_secondary_muscles(ex.id)) == {"LATS"}
 
     def test_add_and_remove_secondary_muscles(self, repo, session):
+        """Add, deduplicate, and remove secondary muscles incrementally."""
         ex = ExerciseFactory(name="Row", slug="row")
         session.add(ex)
         session.flush()
@@ -51,6 +57,7 @@ class TestExerciseSecondaryMuscles:
         assert repo.list_secondary_muscles(ex.id) == []
 
     def test_list_by_secondary_muscle(self, repo, session):
+        """List exercises targeting a given secondary muscle in sorted order."""
         e1 = ExerciseFactory(name="Incline Bench", slug="incline-bench")
         e2 = ExerciseFactory(name="Overhead Press", slug="ohp")
         session.add_all([e1, e2])

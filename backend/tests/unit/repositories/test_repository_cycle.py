@@ -1,4 +1,5 @@
-# backend/tests/unit/repositories/test_repository_cycle.py
+"""Unit tests for ``CycleRepository`` persistence helpers."""
+
 from __future__ import annotations
 
 from datetime import date
@@ -12,11 +13,14 @@ from tests.factories.subject import SubjectFactory
 
 
 class TestCycleRepository:
+    """Validate ``CycleRepository`` behaviours for numbering and listings."""
+
     @pytest.fixture()
     def repo(self) -> CycleRepository:
         return CycleRepository()
 
     def test_create_and_get_by_unique(self, repo, session):
+        """Given a created cycle, when fetched by unique key then it is returned."""
         s = SubjectFactory()
         r = RoutineFactory(owner=s, name="Mesocycle A")
         session.add_all([s, r])
@@ -29,6 +33,7 @@ class TestCycleRepository:
         assert c_got is not None and c_got.id == c1.id
 
     def test_next_cycle_number_and_ensure(self, repo, session):
+        """Ensure the repository increments cycle numbers and backfills missing ones."""
         s = SubjectFactory()
         r = RoutineFactory(owner=s, name="Plan")
         session.add_all([s, r])
@@ -52,6 +57,7 @@ class TestCycleRepository:
         assert c2.cycle_number == 3  # after ensuring
 
     def test_start_and_finish_cycle(self, repo, session):
+        """Start and finish dates persist when invoking lifecycle helpers."""
         s = SubjectFactory()
         r = RoutineFactory(owner=s, name="PPL")
         session.add_all([s, r])
@@ -65,6 +71,7 @@ class TestCycleRepository:
         assert c.ended_on == date(2024, 2, 10)
 
     def test_list_by_subject_and_routine_and_sorting(self, repo, session):
+        """List cycles ordered by cycle number within subject and routine scopes."""
         s = SubjectFactory()
         r = RoutineFactory(owner=s, name="Block")
         session.add_all([s, r])
@@ -82,6 +89,7 @@ class TestCycleRepository:
         assert [c.cycle_number for c in by_routine] == [1, 2, 3]
 
     def test_paginate_for_subject(self, repo, session):
+        """Paginate cycles for a subject yielding deterministic totals and items."""
         s = SubjectFactory()
         r = RoutineFactory(owner=s, name="Meso")
         session.add_all([s, r])

@@ -448,7 +448,11 @@ class BaseRepository(Generic[E]):
         self.flush()
 
     def flush(self) -> None:
-        """Flush pending changes to the database (no commit)."""
+        """Flush pending changes to the database without committing.
+
+        :returns: ``None``.
+        :rtype: None
+        """
         self.session.flush()
 
     # ----------------------------- Safe updates -------------------------------

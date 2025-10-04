@@ -29,7 +29,10 @@ def _patch_apply_sorting(monkeypatch):
 
 
 class TestSubjectBodyMetricsRepository:
+    """Check range queries, pagination, and upsert semantics for body metrics."""
+
     def test_list_for_subject_applies_date_bounds_and_sorting(self, session):
+        """List metrics within date bounds sorted descending by measurement date."""
         subject = SubjectFactory()
         other_subject = SubjectFactory()
         repo = SubjectBodyMetricsRepository()
@@ -65,6 +68,7 @@ class TestSubjectBodyMetricsRepository:
         assert outside_range.id not in {metric.id for metric in results}
 
     def test_paginate_for_subject_respects_limit_and_total(self, session):
+        """Paginate metrics and ensure limits, totals, and ordering are respected."""
         subject = SubjectFactory()
         repo = SubjectBodyMetricsRepository()
 
@@ -85,6 +89,7 @@ class TestSubjectBodyMetricsRepository:
         assert [m.id for m in page.items] == [measurements[0].id, measurements[1].id]
 
     def test_upsert_by_day_creates_and_updates_records(self, session):
+        """Upsert a measurement for a given day and update it on subsequent calls."""
         subject = SubjectFactory()
         repo = SubjectBodyMetricsRepository()
         measured_on = date(2024, 2, 1)

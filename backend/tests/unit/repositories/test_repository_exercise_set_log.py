@@ -1,4 +1,5 @@
-# backend/tests/unit/repositories/test_repository_exercise_set_log.py
+"""Unit tests for ``ExerciseSetLogRepository`` pagination and CRUD helpers."""
+
 from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta
@@ -14,6 +15,8 @@ UTC = UTC
 
 
 class TestExerciseSetLogRepository:
+    """Validate persistence patterns for exercise set logs."""
+
     @pytest.fixture()
     def repo(self) -> ExerciseSetLogRepository:
         return ExerciseSetLogRepository()
@@ -51,6 +54,7 @@ class TestExerciseSetLogRepository:
             )
 
     def test_upsert_log_insert_then_update(self, repo, session):
+        """Insert a log and update the same composite key with new values."""
         s = SubjectFactory()
         ex = ExerciseFactory()
         session.add_all([s, ex])
@@ -87,6 +91,7 @@ class TestExerciseSetLogRepository:
         assert row2.notes == "AMRAP-ish"
 
     def test_list_for_subject_date_range_and_filters(self, repo, session):
+        """List subject logs filtered by date range, exercise, and ordering."""
         s = SubjectFactory()
         ex1 = ExerciseFactory()
         ex2 = ExerciseFactory()
@@ -119,6 +124,7 @@ class TestExerciseSetLogRepository:
         assert dts == [date(2024, 1, 3), date(2024, 1, 2)]
 
     def test_paginate_for_subject(self, repo, session):
+        """Paginate subject logs and verify totals and item counts per page."""
         s = SubjectFactory()
         ex = ExerciseFactory()
         session.add_all([s, ex])
@@ -151,6 +157,7 @@ class TestExerciseSetLogRepository:
         assert len(page2.items) == 2
 
     def test_list_for_session_sorted(self, repo, session):
+        """List logs for a session sorted by time and set index."""
         s = SubjectFactory()
         ex = ExerciseFactory()
         ws = WorkoutSessionFactory(subject=s)
@@ -176,6 +183,7 @@ class TestExerciseSetLogRepository:
         assert [r.set_index for r in rows] == [1, 2]
 
     def test_latest_for_subject_exercise(self, repo, session):
+        """Retrieve the latest log for a subject/exercise using ordering rules."""
         s = SubjectFactory()
         ex = ExerciseFactory()
         session.add_all([s, ex])
