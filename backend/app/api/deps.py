@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import functools
 import time
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
-from typing import Any, Callable, Iterable, Mapping, TypeVar
+from typing import Any, TypeVar, cast
 
 from flask import Response, current_app, jsonify, request
 from flask_jwt_extended import get_jwt, verify_jwt_in_request
@@ -111,8 +112,9 @@ def require_scope(required: str) -> Callable[[F], F]:
 def idempotency_cache() -> dict[str, Any]:
     """Return the process-local idempotency cache."""
 
-    store = current_app.extensions.setdefault("idempotency_cache", {})
-    return store  # type: ignore[return-value]
+    default: dict[str, Any] = {}
+    store = current_app.extensions.setdefault("idempotency_cache", default)
+    return cast(dict[str, Any], store)
 
 
 def enforce_idempotency(key: str | None) -> tuple[bool, dict[str, Any] | None]:
