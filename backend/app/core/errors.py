@@ -8,8 +8,8 @@ from typing import Any, cast
 from uuid import uuid4
 
 from flask import Flask, Response, g, jsonify, request
-from werkzeug.exceptions import HTTPException
 from psycopg2 import errorcodes as pgcodes
+from werkzeug.exceptions import HTTPException
 
 # Optional integrations (guarded imports)
 try:
@@ -226,7 +226,7 @@ def init_app(app: Flask) -> None:
             err.message,
             problem.get("request_id"),
         )
-        return _problem_response(problem), err.status_code
+        return _problem_response(problem, status=err.status_code)
 
     @app.errorhandler(HTTPException)
     def handle_http_exception(err: HTTPException):
@@ -246,7 +246,7 @@ def init_app(app: Flask) -> None:
             message,
             problem.get("request_id"),
         )
-        return _problem_response(problem), status
+        return _problem_response(problem, status=status)
 
     # Optional: schema validation (Marshmallow)
     if MarshmallowValidationError is not None:
@@ -315,4 +315,4 @@ def init_app(app: Flask) -> None:
             problem.get("request_id"),
             exc_info=True,
         )
-        return _problem_response(problem), HTTPStatus.INTERNAL_SERVER_ERROR
+        return _problem_response(problem, status=HTTPStatus.INTERNAL_SERVER_ERROR)

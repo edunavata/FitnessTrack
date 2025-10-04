@@ -4,15 +4,15 @@ from __future__ import annotations
 
 import functools
 import time
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
-from typing import Any, Callable, Iterable, Mapping, TypeVar
+from typing import Any, TypeVar, cast
 
 from flask import Response, current_app, g, jsonify, request
 from sqlalchemy.orm import Query
 
-from app.core.extensions import db
-
 from app.core.errors import Unauthorized
+from app.core.extensions import db
 
 F = TypeVar("F", bound=Callable[..., Any])
 
@@ -165,8 +165,9 @@ def idempotency_cache() -> dict[str, Any]:
     :rtype: dict[str, Any]
     """
 
-    store = current_app.extensions.setdefault("idempotency_cache", {})
-    return store  # type: ignore[return-value]
+    default: dict[str, Any] = {}
+    store = current_app.extensions.setdefault("idempotency_cache", default)
+    return cast(dict[str, Any], store)
 
 
 def enforce_idempotency(key: str | None) -> tuple[bool, dict[str, Any] | None]:
