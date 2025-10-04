@@ -4,7 +4,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping
 from typing import Any, cast
 
-from sqlalchemy import Select, and_, select
+from sqlalchemy import Select, and_, delete, select
 from sqlalchemy.orm import InstrumentedAttribute, selectinload
 
 from app.models.exercise import (
@@ -13,6 +13,7 @@ from app.models.exercise import (
     ExerciseTag,
     Tag,
 )
+from app.models.exercise_secondary import ExerciseSecondaryMuscle
 from app.repositories import base as base_module
 from app.repositories.base import BaseRepository
 
@@ -349,6 +350,126 @@ class ExerciseRepository(BaseRepository[Exercise]):
         )
         stmt = self._default_eagerload(stmt)
 
+        stmt = apply_sorting(stmt, self._sortable_fields(), sort or [], pk_attr=self._pk_attr())
+        return list(self.session.execute(stmt).scalars().all())
+
+    # ---------------------- Secondary muscles: helpers ----------------------
+    def list_secondary_muscles(self, exercise_id: int) -> list[str]:
+        """
+        Return the secondary muscle names for the given exercise.
+        """
+        stmt = select(ExerciseSecondaryMuscle.muscle).where(
+            ExerciseSecondaryMuscle.exercise_id == exercise_id
+        )
+        return [row[0] for row in self.session.execute(stmt).all()]
+
+    def set_secondary_muscles(
+        self, exercise_id: int, muscles: list[str], *, flush: bool = True
+    ) -> list[str]:
+        """
+        Replace the set of secondary muscles for an exercise (idempotent).
+        """
+        desired = {m.strip().upper() for m in muscles if m and m.strip()}
+        # load current
+        current_rows = (
+            self.session.execute(
+                select(ExerciseSecondaryMuscle).where(
+                    ExerciseSecondaryMuscle.exercise_id == exercise_id
+                )
+            )
+            .scalars()
+            .all()
+        )
+        current = {r.muscle for r in current_rows}
+
+        to_add = desired - current
+        to_remove = current - desired
+
+        # add new links
+        for m in to_add:
+            self.session.add(ExerciseSecondaryMuscle(exercise_id=exercise_id, muscle=m))
+
+        # remove obsolete
+        if to_remove:
+            self.session.execute(
+                delete(ExerciseSecondaryMuscle).where(
+                    and_(
+                        ExerciseSecondaryMuscle.exercise_id == exercise_id,
+                        ExerciseSecondaryMuscle.muscle.in_(list(to_remove)),
+                    )
+                )
+            )
+
+        if flush:
+            self.flush()
+        return sorted(desired)
+
+    def add_secondary_muscles(
+        self, exercise_id: int, muscles: list[str], *, flush: bool = True
+    ) -> list[str]:
+        """
+        Add (union) the given secondary muscles to the exercise (idempotent).
+        """
+        cleaned = [m.strip().upper() for m in muscles if m and m.strip()]
+        if cleaned:
+            # existing set
+            existing = set(self.list_secondary_muscles(exercise_id))
+            for m in cleaned:
+                if m not in existing:
+                    self.session.add(ExerciseSecondaryMuscle(exercise_id=exercise_id, muscle=m))
+            if flush:
+                self.flush()
+        return self.list_secondary_muscles(exercise_id)
+
+    def remove_secondary_muscles(
+        self, exercise_id: int, muscles: list[str] | None, *, flush: bool = True
+    ) -> int:
+        """
+        Remove specific secondary muscles or all if `muscles` is None.
+        :returns: number of rows removed.
+        """
+        if muscles is None:
+            # delete all for exercise
+            result = self.session.execute(
+                delete(ExerciseSecondaryMuscle).where(
+                    ExerciseSecondaryMuscle.exercise_id == exercise_id
+                )
+            )
+            removed = result.rowcount or 0
+        else:
+            cleaned = [m.strip().upper() for m in muscles if m and m.strip()]
+            if not cleaned:
+                return 0
+            result = self.session.execute(
+                delete(ExerciseSecondaryMuscle).where(
+                    and_(
+                        ExerciseSecondaryMuscle.exercise_id == exercise_id,
+                        ExerciseSecondaryMuscle.muscle.in_(cleaned),
+                    )
+                )
+            )
+            removed = result.rowcount or 0
+
+        if flush:
+            self.flush()
+        return int(removed)
+
+    def list_by_secondary_muscle(
+        self, muscle: str, *, sort: Iterable[str] | None = None
+    ) -> list[Exercise]:
+        """
+        List exercises that include the given secondary muscle.
+        """
+        m = muscle.strip().upper()
+        stmt = (
+            select(self.model)
+            .join(
+                ExerciseSecondaryMuscle,
+                ExerciseSecondaryMuscle.exercise_id == self.model.id,
+            )
+            .where(ExerciseSecondaryMuscle.muscle == m)
+        )
+        stmt = self._default_eagerload(stmt)
         stmt = apply_sorting(stmt, self._sortable_fields(), sort or [], pk_attr=self._pk_attr())
         return list(self.session.execute(stmt).scalars().all())
 
