@@ -1,4 +1,12 @@
-# backend/app/repositories/cycle.py
+"""Cycle repository implementing persistence-focused operations.
+
+This module houses the :class:`CycleRepository`, a thin wrapper around the
+generic :class:`~app.repositories.base.BaseRepository` that is responsible for
+CRUD access to :class:`app.models.cycle.Cycle`. All helpers stay within the
+persistence boundary — there is no business logic or transaction management
+here; services own the Unit of Work.
+"""
+
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
@@ -14,12 +22,13 @@ from app.repositories.base import BaseRepository, Page, Pagination, paginate_sel
 
 
 class CycleRepository(BaseRepository[Cycle]):
-    """
-    Persistence-only repository for :class:`Cycle`.
+    """Persist ``Cycle`` aggregates and expose persistence-oriented helpers.
 
-    - Unicidad por (subject_id, routine_id, cycle_number)
-    - Helpers para numeración, arranque y cierre del ciclo
-    - Listados por subject/routine y paginación por rangos de fecha
+    The repository guarantees deterministic pagination by applying the
+    whitelisted sorting options defined in :meth:`_sortable_fields` and keeps
+    cycle numbering consistent with the unique key
+    ``(subject_id, routine_id, cycle_number)``. Transactions are managed by the
+    calling service layer; this class only interacts with the active session.
     """
 
     model = Cycle
@@ -45,16 +54,29 @@ class CycleRepository(BaseRepository[Cycle]):
         }
 
     def _updatable_fields(self) -> set[str]:
-        # Campos mutables de un ciclo existente; no permitimos cambiar PK lógicas.
+        # Mutable fields for an existing cycle; logical keys remain immutable.
         return {"started_on", "ended_on", "notes"}
 
     # ----------------------------- Eager loading ------------------------------
     def _default_eagerload(self, stmt: Select[Any]) -> Select[Any]:
-        # Relaciones ya van con lazy="selectin" en el modelo; no forzamos joins aquí.
+        # Relationships already use selectin loading at the model level; no joins needed.
         return stmt
 
     # ----------------------------- Lookups ------------------------------------
-    def get_by_unique(self, subject_id: int, routine_id: int, cycle_number: int) -> Cycle | None:
+    def get_by_unique(
+        self, subject_id: int, routine_id: int, cycle_number: int
+    ) -> Cycle | None:
+        """Return a cycle identified by its composite unique key.
+
+        :param subject_id: Identifier of the owning subject.
+        :type subject_id: int
+        :param routine_id: Identifier of the related routine.
+        :type routine_id: int
+        :param cycle_number: Sequential number within the routine/subject pair.
+        :type cycle_number: int
+        :returns: The matching cycle or ``None`` when absent.
+        :rtype: Cycle | None
+        """
         stmt = select(self.model).where(
             and_(
                 self.model.subject_id == subject_id,
@@ -67,14 +89,32 @@ class CycleRepository(BaseRepository[Cycle]):
         return cast(Cycle | None, result)
 
     def next_cycle_number(self, subject_id: int, routine_id: int) -> int:
-        """Devuelve MAX(cycle_number)+1 para (subject,routine) o 1 si no hay ciclos."""
+        """Compute the next sequential cycle number for the pair.
+
+        :param subject_id: Identifier of the owning subject.
+        :type subject_id: int
+        :param routine_id: Identifier of the related routine.
+        :type routine_id: int
+        :returns: The next available ``cycle_number`` starting at ``1``.
+        :rtype: int
+        """
         q = select(func.coalesce(func.max(self.model.cycle_number), 0) + 1).where(
             and_(self.model.subject_id == subject_id, self.model.routine_id == routine_id)
         )
         return int(self.session.execute(q).scalar_one())
 
     def ensure_cycle_number(self, cycle: Cycle) -> Cycle:
-        """Si `cycle.cycle_number` es None/0, asigna el siguiente número disponible."""
+        """Ensure a cycle has a positive ``cycle_number`` assigned.
+
+        The helper mutates the provided instance in-place. When the number is
+        unset or zero, the repository queries :meth:`next_cycle_number` to keep
+        numbering unique per ``(subject_id, routine_id)``.
+
+        :param cycle: Cycle instance to normalise.
+        :type cycle: Cycle
+        :returns: The same instance with a guaranteed ``cycle_number``.
+        :rtype: Cycle
+        """
         if not getattr(cycle, "cycle_number", None) or cycle.cycle_number <= 0:
             cycle.cycle_number = self.next_cycle_number(cycle.subject_id, cycle.routine_id)
         return cycle
@@ -91,7 +131,29 @@ class CycleRepository(BaseRepository[Cycle]):
         notes: str | None = None,
         flush: bool = True,
     ) -> Cycle:
-        """Crea un ciclo; si no se pasa `cycle_number`, se autoincrementa por (subject,routine)."""
+        """Create and stage a ``Cycle`` row for persistence.
+
+        When ``cycle_number`` is omitted the method assigns the next available
+        number per ``(subject_id, routine_id)`` to honour the uniqueness
+        constraint enforced at the database level.
+
+        :param subject_id: Identifier of the owning subject.
+        :type subject_id: int
+        :param routine_id: Identifier of the related routine.
+        :type routine_id: int
+        :param cycle_number: Optional explicit sequential number.
+        :type cycle_number: int | None
+        :param started_on: Optional start date of the training cycle.
+        :type started_on: datetime.date | None
+        :param ended_on: Optional end date of the training cycle.
+        :type ended_on: datetime.date | None
+        :param notes: Optional free-form notes.
+        :type notes: str | None
+        :param flush: Whether to flush the session after staging the entity.
+        :type flush: bool
+        :returns: The staged cycle entity.
+        :rtype: Cycle
+        """
         if cycle_number is None or not cycle_number or cycle_number <= 0:
             cycle_number = self.next_cycle_number(subject_id, routine_id)
 
@@ -109,7 +171,16 @@ class CycleRepository(BaseRepository[Cycle]):
         return row
 
     def start_cycle(self, cycle_id: int, started_on: date) -> Cycle:
-        """Marca `started_on` (no toca ended_on)."""
+        """Set the ``started_on`` date for a persisted cycle.
+
+        :param cycle_id: Identifier of the cycle to mutate.
+        :type cycle_id: int
+        :param started_on: Date marking the cycle start.
+        :type started_on: datetime.date
+        :returns: The mutated cycle instance.
+        :rtype: Cycle
+        :raises ValueError: If the cycle cannot be found.
+        """
         row = self.get(cycle_id)
         if not row:
             raise ValueError(f"Cycle {cycle_id} not found.")
@@ -117,7 +188,16 @@ class CycleRepository(BaseRepository[Cycle]):
         return row
 
     def finish_cycle(self, cycle_id: int, ended_on: date) -> Cycle:
-        """Marca `ended_on` (no toca started_on)."""
+        """Set the ``ended_on`` date for a persisted cycle.
+
+        :param cycle_id: Identifier of the cycle to mutate.
+        :type cycle_id: int
+        :param ended_on: Date marking the cycle end.
+        :type ended_on: datetime.date
+        :returns: The mutated cycle instance.
+        :rtype: Cycle
+        :raises ValueError: If the cycle cannot be found.
+        """
         row = self.get(cycle_id)
         if not row:
             raise ValueError(f"Cycle {cycle_id} not found.")
@@ -131,6 +211,15 @@ class CycleRepository(BaseRepository[Cycle]):
         *,
         sort: Iterable[str] | None = None,
     ) -> list[Cycle]:
+        """List cycles owned by a subject with optional sorting.
+
+        :param subject_id: Identifier of the owning subject.
+        :type subject_id: int
+        :param sort: Public sort tokens processed through the whitelist.
+        :type sort: Iterable[str] | None
+        :returns: Ordered list of cycles.
+        :rtype: list[Cycle]
+        """
         stmt: Select[Any] = select(self.model).where(self.model.subject_id == subject_id)
         stmt = self._default_eagerload(stmt)
         stmt = base_module._apply_sorting(
@@ -144,6 +233,15 @@ class CycleRepository(BaseRepository[Cycle]):
         *,
         sort: Iterable[str] | None = None,
     ) -> list[Cycle]:
+        """List cycles associated with a specific routine.
+
+        :param routine_id: Identifier of the related routine.
+        :type routine_id: int
+        :param sort: Public sort tokens processed through the whitelist.
+        :type sort: Iterable[str] | None
+        :returns: Ordered list of cycles.
+        :rtype: list[Cycle]
+        """
         stmt: Select[Any] = select(self.model).where(self.model.routine_id == routine_id)
         stmt = self._default_eagerload(stmt)
         stmt = base_module._apply_sorting(
@@ -159,8 +257,18 @@ class CycleRepository(BaseRepository[Cycle]):
         routine_id: int | None = None,
         with_total: bool = True,
     ) -> Page[Cycle]:
-        """
-        Pagina ciclos de un subject, opcionalmente filtrando por routine.
+        """Paginate cycles for a subject with an optional routine filter.
+
+        :param pagination: Pagination parameters and sort tokens.
+        :type pagination: Pagination
+        :param subject_id: Identifier of the owning subject.
+        :type subject_id: int
+        :param routine_id: Optional routine to scope the listing.
+        :type routine_id: int | None
+        :param with_total: Whether to compute the total row count.
+        :type with_total: bool
+        :returns: Page of cycles respecting deterministic ordering.
+        :rtype: Page[Cycle]
         """
         stmt: Select[Any] = select(self.model).where(self.model.subject_id == subject_id)
         if routine_id is not None:

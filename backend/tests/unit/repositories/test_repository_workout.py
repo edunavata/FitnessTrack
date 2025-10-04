@@ -1,3 +1,5 @@
+"""Unit tests for ``WorkoutSessionRepository`` covering CRUD and listings."""
+
 from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta
@@ -13,6 +15,7 @@ UTC = UTC
 
 
 class TestWorkoutSessionRepository:
+    """Validate session creation, updates, and deterministic listings."""
     @pytest.fixture()
     def repo(self) -> WorkoutSessionRepository:
         return WorkoutSessionRepository()
@@ -21,6 +24,7 @@ class TestWorkoutSessionRepository:
         return datetime(y, m, d, h, mi, s, tzinfo=UTC)
 
     def test_create_and_get_by_unique(self, repo, session):
+        """Create a workout session and retrieve it by composite key."""
         s = SubjectFactory()
         session.add(s)
         session.flush()
@@ -32,6 +36,7 @@ class TestWorkoutSessionRepository:
         assert got is not None and got.id == ws.id
 
     def test_upsert_by_date_insert_then_update(self, repo, session):
+        """Insert a session via upsert and update it with new details."""
         s = SubjectFactory()
         session.add(s)
         session.flush()
@@ -53,6 +58,7 @@ class TestWorkoutSessionRepository:
         assert ws2.bodyweight_kg == 80.5
 
     def test_attach_to_cycle_validator(self, repo, session):
+        """Attach sessions to cycles, enforcing subject validation."""
         s1 = SubjectFactory()
         s2 = SubjectFactory()
         r = RoutineFactory(owner=s1, name="Block")
@@ -74,6 +80,7 @@ class TestWorkoutSessionRepository:
             repo.attach_to_cycle(ws.id, c_mismatch.id)
 
     def test_list_for_subject_and_pagination(self, repo, session):
+        """List sessions by date range and paginate through ordered results."""
         s = SubjectFactory()
         session.add(s)
         session.flush()
@@ -101,6 +108,7 @@ class TestWorkoutSessionRepository:
         assert [x.workout_date.date() for x in page1.items] == [date(2024, 4, 1), date(2024, 4, 2)]
 
     def test_list_for_cycle_sorted(self, repo, session):
+        """List sessions for a cycle respecting sort order."""
         s = SubjectFactory()
         r = RoutineFactory(owner=s, name="Plan")
         c = CycleFactory(subject=s, routine=r, cycle_number=1)
@@ -118,6 +126,7 @@ class TestWorkoutSessionRepository:
         assert [w.id for w in rows] == [ws2.id, ws1.id]
 
     def test_mark_completed(self, repo, session):
+        """Mark a session as completed via the repository helper."""
         s = SubjectFactory()
         session.add(s)
         session.flush()

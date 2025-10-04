@@ -50,8 +50,10 @@ class UserRepository(BaseRepository[User]):
     def get_by_email(self, email: str) -> User | None:
         """Fetch a user by email (case-insensitive).
 
-        :param email: Email to search.
-        :returns: User or None.
+        :param email: Email address to normalise and search.
+        :type email: str
+        :returns: User instance or ``None`` when not found.
+        :rtype: User | None
         """
         stmt = select(User).where(User.email == email.lower().strip())
         stmt = self._default_eagerload(stmt)
@@ -59,14 +61,27 @@ class UserRepository(BaseRepository[User]):
         return cast(User | None, result)
 
     def exists_by_email(self, email: str) -> bool:
-        """Return True if a user with this email exists."""
+        """Return ``True`` when a user with the provided email exists.
+
+        :param email: Email address to normalise and search.
+        :type email: str
+        :returns: ``True`` if a row is found; otherwise ``False``.
+        :rtype: bool
+        """
         stmt = select(User.id).where(User.email == email.lower().strip())
         return bool(self.session.execute(stmt).first())
 
     # ---------------------------- Password ops ----------------------------
 
     def update_password(self, user_id: int, new_password: str) -> None:
-        """Update a user's password securely (re-hash and flush)."""
+        """Update a user's password and flush the session.
+
+        :param user_id: Identifier of the user.
+        :type user_id: int
+        :param new_password: Raw password to assign; model handles hashing.
+        :type new_password: str
+        :raises ValueError: If the user does not exist.
+        """
         user = self.get(user_id)
         if not user:
             raise ValueError(f"User {user_id} not found.")
@@ -76,7 +91,12 @@ class UserRepository(BaseRepository[User]):
     def authenticate(self, email: str, password: str) -> User | None:
         """Authenticate a user by email and password.
 
-        :returns: User if credentials valid; otherwise None.
+        :param email: Email address to authenticate.
+        :type email: str
+        :param password: Raw password to verify.
+        :type password: str
+        :returns: Authenticated user or ``None`` when credentials fail.
+        :rtype: User | None
         """
         user = self.get_by_email(email)
         if not user or not user.verify_password(password):
@@ -86,5 +106,11 @@ class UserRepository(BaseRepository[User]):
     # ---------------------------- Eager loading ----------------------------
 
     def _default_eagerload(self, stmt):
-        """No joins needed yet, but kept for consistency."""
+        """Return the statement unchanged as no eager loading is required.
+
+        :param stmt: ``SELECT`` statement to potentially augment.
+        :type stmt: :class:`sqlalchemy.sql.Select`
+        :returns: The same statement without modification.
+        :rtype: :class:`sqlalchemy.sql.Select`
+        """
         return stmt

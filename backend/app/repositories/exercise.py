@@ -1,4 +1,12 @@
-# backend/app/repositories/exercise.py
+"""Exercise repository implementing persistence-only data access helpers.
+
+The :class:`ExerciseRepository` extends the generic
+:class:`~app.repositories.base.BaseRepository` with helpers to maintain aliases,
+tags and secondary muscles while respecting repository boundaries. All
+operations stay persistence-focused; services coordinate transactions and
+business invariants.
+"""
+
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
@@ -21,11 +29,13 @@ apply_sorting = base_module._apply_sorting
 
 
 class ExerciseRepository(BaseRepository[Exercise]):
-    """
-    Persistence-only repository for :class:`app.models.exercise.Exercise`.
+    """Persist :class:`Exercise` aggregates and expose relationship helpers.
 
-    Focuses on safe listing, eager-loading to avoid N+1, and small domain
-    helpers to maintain aliases and tags. No commits are performed here.
+    The repository focuses on persistence mechanics such as deterministic
+    pagination, whitelist-based sorting and eager loading designed to reduce
+    N+1 queries. Relationship maintenance methods manipulate aliases, tags and
+    secondary muscles while deferring transactional control to the service
+    layer.
     """
 
     model = Exercise
@@ -100,12 +110,17 @@ class ExerciseRepository(BaseRepository[Exercise]):
 
     # --------------------------- Default eager loading ------------------------
     def _default_eagerload(self, stmt: Select[Any]) -> Select[Any]:
-        """
-        Attach reasonable eager loading:
+        """Attach eager-loading options tuned for Exercise listings.
 
-        * ``aliases`` is small (1:N, short strings) → joinedload is fine.
-        * ``tags`` uses a join table → selectinload(Exercise.tags).joinedload(ExerciseTag.tag)
-        * ``secondary_muscles`` can be many → selectinload (defined on model)
+        ``selectinload`` is applied to collections to avoid row explosion while
+        still benefiting from SQLAlchemy's identity map. The ``ExerciseTag``
+        association eagerly loads ``Tag`` via ``joinedload`` to materialise tag
+        names in one roundtrip.
+
+        :param stmt: Base ``SELECT`` statement to augment.
+        :type stmt: :class:`sqlalchemy.sql.Select`
+        :returns: Statement enriched with eager-loading directives.
+        :rtype: :class:`sqlalchemy.sql.Select`
         """
         return stmt.options(
             selectinload(self.model.aliases),
@@ -141,6 +156,7 @@ class ExerciseRepository(BaseRepository[Exercise]):
         :type flush: bool
         :returns: The ensured alias row.
         :rtype: :class:`app.models.exercise.ExerciseAlias`
+        :raises ValueError: If the alias is empty after trimming.
         """
         a = alias.strip()
         if not a:
@@ -191,20 +207,20 @@ class ExerciseRepository(BaseRepository[Exercise]):
     def set_tags_by_names(
         self, exercise_id: int, names: list[str], *, flush: bool = True
     ) -> list[Tag]:
-        """
-        Replace the exercise tag set with the provided names (idempotent).
+        """Replace the tag set for an exercise in an idempotent manner.
 
-        Ensures that Tag rows exist. Adds missing links and removes extra links
-        to match the provided set exactly.
+        Ensures referenced :class:`Tag` rows exist, inserts missing links and
+        deletes surplus links to match the provided set exactly.
 
-        :param exercise_id: Exercise PK.
+        :param exercise_id: Primary key of the target exercise.
         :type exercise_id: int
-        :param names: Desired tag names (case-sensitive here).
+        :param names: Desired tag names (case-sensitive).
         :type names: list[str]
-        :param flush: Whether to flush after changes.
+        :param flush: Whether to flush the session after applying changes.
         :type flush: bool
-        :returns: Resulting Tag rows linked to the exercise.
-        :rtype: list[:class:`app.models.exercise.Tag`]
+        :returns: Sorted list of ``Tag`` rows associated with the exercise.
+        :rtype: list[Tag]
+        :raises RuntimeError: If a newly ensured tag is missing a primary key.
         """
         desired = {n.strip() for n in names if n and n.strip()}
         if not desired:
@@ -256,10 +272,17 @@ class ExerciseRepository(BaseRepository[Exercise]):
         return list(self.session.execute(stmt).scalars().all())
 
     def add_tags(self, exercise_id: int, names: list[str], *, flush: bool = True) -> list[Tag]:
-        """
-        Add (union) the given tag names to an exercise (idempotent per name).
+        """Add tag names to an exercise without duplicating existing links.
 
-        :returns: The full resulting tag set after additions.
+        :param exercise_id: Primary key of the target exercise.
+        :type exercise_id: int
+        :param names: Tag names to add (whitespace-trimmed).
+        :type names: list[str]
+        :param flush: Whether to flush the session after applying changes.
+        :type flush: bool
+        :returns: Updated tag set after the union operation.
+        :rtype: list[Tag]
+        :raises RuntimeError: If a newly ensured tag is missing a primary key.
         """
         cleaned = [n.strip() for n in names if n and n.strip()]
         if not cleaned:
@@ -282,11 +305,19 @@ class ExerciseRepository(BaseRepository[Exercise]):
         return self.list_tags(exercise_id)
 
     def remove_tags(self, exercise_id: int, names: list[str] | None, *, flush: bool = True) -> int:
-        """
-        Remove the specified tag names from the exercise. If ``names`` is None,
-        remove **all** tags from this exercise.
+        """Remove tag links for an exercise.
 
-        :returns: Number of removed links.
+        When ``names`` is ``None`` all tags linked to the exercise are removed;
+        otherwise only the provided names are detached.
+
+        :param exercise_id: Primary key of the target exercise.
+        :type exercise_id: int
+        :param names: Tag names to remove or ``None`` to clear all.
+        :type names: list[str] | None
+        :param flush: Whether to flush the session after applying changes.
+        :type flush: bool
+        :returns: Count of deleted association rows.
+        :rtype: int
         """
         if names is None:
             # delete all links for exercise
@@ -321,8 +352,12 @@ class ExerciseRepository(BaseRepository[Exercise]):
         return count
 
     def list_tags(self, exercise_id: int) -> list[Tag]:
-        """
-        Return the current Tags linked to the given exercise.
+        """Return the tags currently linked to an exercise.
+
+        :param exercise_id: Primary key of the target exercise.
+        :type exercise_id: int
+        :returns: Tag rows ordered as fetched from the database.
+        :rtype: list[Tag]
         """
         stmt = (
             select(Tag)
@@ -340,7 +375,7 @@ class ExerciseRepository(BaseRepository[Exercise]):
         :param sort: Public sort tokens (e.g., ``["name"]``).
         :type sort: Iterable[str] | None
         :returns: List of exercises.
-        :rtype: list[:class:`app.models.exercise.Exercise`]
+        :rtype: list[Exercise]
         """
         stmt = (
             select(self.model)
@@ -355,8 +390,12 @@ class ExerciseRepository(BaseRepository[Exercise]):
 
     # ---------------------- Secondary muscles: helpers ----------------------
     def list_secondary_muscles(self, exercise_id: int) -> list[str]:
-        """
-        Return the secondary muscle names for the given exercise.
+        """Return secondary muscle codes linked to an exercise.
+
+        :param exercise_id: Primary key of the target exercise.
+        :type exercise_id: int
+        :returns: Upper-case muscle identifiers stored in the join table.
+        :rtype: list[str]
         """
         stmt = select(ExerciseSecondaryMuscle.muscle).where(
             ExerciseSecondaryMuscle.exercise_id == exercise_id
@@ -366,8 +405,16 @@ class ExerciseRepository(BaseRepository[Exercise]):
     def set_secondary_muscles(
         self, exercise_id: int, muscles: list[str], *, flush: bool = True
     ) -> list[str]:
-        """
-        Replace the set of secondary muscles for an exercise (idempotent).
+        """Replace the set of secondary muscles for an exercise.
+
+        :param exercise_id: Primary key of the target exercise.
+        :type exercise_id: int
+        :param muscles: Desired secondary muscle identifiers.
+        :type muscles: list[str]
+        :param flush: Whether to flush the session after applying changes.
+        :type flush: bool
+        :returns: Sorted list of secondary muscle identifiers.
+        :rtype: list[str]
         """
         desired = {m.strip().upper() for m in muscles if m and m.strip()}
         # load current
@@ -407,8 +454,16 @@ class ExerciseRepository(BaseRepository[Exercise]):
     def add_secondary_muscles(
         self, exercise_id: int, muscles: list[str], *, flush: bool = True
     ) -> list[str]:
-        """
-        Add (union) the given secondary muscles to the exercise (idempotent).
+        """Add secondary muscles to an exercise without duplications.
+
+        :param exercise_id: Primary key of the target exercise.
+        :type exercise_id: int
+        :param muscles: Secondary muscle identifiers to add.
+        :type muscles: list[str]
+        :param flush: Whether to flush the session after applying changes.
+        :type flush: bool
+        :returns: Updated list of secondary muscle identifiers.
+        :rtype: list[str]
         """
         cleaned = [m.strip().upper() for m in muscles if m and m.strip()]
         if cleaned:
@@ -424,9 +479,16 @@ class ExerciseRepository(BaseRepository[Exercise]):
     def remove_secondary_muscles(
         self, exercise_id: int, muscles: list[str] | None, *, flush: bool = True
     ) -> int:
-        """
-        Remove specific secondary muscles or all if `muscles` is None.
-        :returns: number of rows removed.
+        """Remove secondary muscle links for an exercise.
+
+        :param exercise_id: Primary key of the target exercise.
+        :type exercise_id: int
+        :param muscles: Secondary muscle identifiers to remove or ``None`` to clear all.
+        :type muscles: list[str] | None
+        :param flush: Whether to flush the session after applying changes.
+        :type flush: bool
+        :returns: Number of deleted join rows.
+        :rtype: int
         """
         if muscles is None:
             # delete all for exercise
@@ -457,8 +519,14 @@ class ExerciseRepository(BaseRepository[Exercise]):
     def list_by_secondary_muscle(
         self, muscle: str, *, sort: Iterable[str] | None = None
     ) -> list[Exercise]:
-        """
-        List exercises that include the given secondary muscle.
+        """List exercises that target a specific secondary muscle.
+
+        :param muscle: Secondary muscle identifier (case-insensitive).
+        :type muscle: str
+        :param sort: Public sort tokens processed through the whitelist.
+        :type sort: Iterable[str] | None
+        :returns: Exercises associated with the requested secondary muscle.
+        :rtype: list[Exercise]
         """
         m = muscle.strip().upper()
         stmt = (
@@ -480,6 +548,8 @@ class ExerciseRepository(BaseRepository[Exercise]):
 
         :param name: Tag name.
         :type name: str
+        :param flush: Whether to flush the session when a new tag is inserted.
+        :type flush: bool
         :returns: Tag row.
         :rtype: :class:`app.models.exercise.Tag`
         """

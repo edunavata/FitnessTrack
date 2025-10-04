@@ -1,4 +1,11 @@
-# backend/app/repositories/subject.py
+"""Subject repository implementing persistence-only operations.
+
+This module provides :class:`SubjectRepository`, a thin persistence wrapper
+around :class:`~app.repositories.base.BaseRepository`. It keeps data access
+concerns isolated from business logic and transaction orchestration while
+documenting eager-loading and sorting conventions for :class:`Subject`.
+"""
+
 from __future__ import annotations
 
 from collections.abc import Mapping
@@ -13,12 +20,11 @@ from app.repositories.base import BaseRepository
 
 
 class SubjectRepository(BaseRepository[Subject]):
-    """
-    Persistence-only repository for :class:`app.models.subject.Subject`.
+    """Persist :class:`Subject` aggregates and expose profile helpers.
 
-    This repository focuses on safe listing, pagination, and common lookups.
-    Eager-loading avoids N+1 for the 1:1 profile, while heavy collections are
-    not auto-loaded by default to keep listings lean.
+    The repository provides deterministic sorting, optional equality filtering
+    and lean eager loading for the profile relationship. Services handle
+    transactions and broader orchestration.
     """
 
     model = Subject
@@ -135,7 +141,7 @@ class SubjectRepository(BaseRepository[Subject]):
             subject.profile = profile
             self.flush()
 
-        # Mypy ahora sabe que 'profile' es un SubjectProfile
+        # mypy now knows ``profile`` is a SubjectProfile instance
         return profile
 
     def update_profile(
@@ -156,8 +162,8 @@ class SubjectRepository(BaseRepository[Subject]):
 
         :param subject_id: Subject primary key.
         :type subject_id: int
-        :param sex: Optional sex enum value (string).
-        :type sex: str | None
+        :param sex: Optional sex enum value.
+        :type sex: SexEnum | str | None
         :param birth_year: Optional birth year.
         :type birth_year: int | None
         :param height_cm: Optional height in centimeters.

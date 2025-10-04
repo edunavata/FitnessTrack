@@ -1,4 +1,12 @@
-# backend/app/repositories/subject_body_metrics.py
+"""Subject body metrics repository offering persistence-only helpers.
+
+The :class:`SubjectBodyMetricsRepository` extends
+:class:`~app.repositories.base.BaseRepository` to provide range queries,
+deterministic pagination and upsert helpers for
+:class:`app.models.subject.SubjectBodyMetrics`. The repository avoids business
+logic and transaction control, leaving orchestration to services.
+"""
+
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
@@ -17,13 +25,11 @@ apply_sorting = base_module._apply_sorting
 
 
 class SubjectBodyMetricsRepository(BaseRepository[SubjectBodyMetrics]):
-    """
-    Persistence-only repository for :class:`app.models.subject.SubjectBodyMetrics`.
+    """Persist body metrics time-series rows and expose range helpers.
 
-    Focused on time-series access patterns:
-    - Range queries by ``measured_on``.
-    - Deterministic pagination with PK tiebreaker.
-    - Idempotent upsert by ``(subject_id, measured_on)``.
+    The repository is tuned for chronological queries and exposes a safe
+    upsert primitive keyed by ``(subject_id, measured_on)``. Sorting honours the
+    whitelist and always appends the primary key as a deterministic tiebreaker.
     """
 
     model = SubjectBodyMetrics
@@ -99,9 +105,9 @@ class SubjectBodyMetricsRepository(BaseRepository[SubjectBodyMetrics]):
         :param subject_id: Subject identifier.
         :type subject_id: int
         :param date_from: Inclusive lower bound for ``measured_on``.
-        :type date_from: :class:`datetime.date` | None
+        :type date_from: datetime.date | None
         :param date_to: Inclusive upper bound for ``measured_on``.
-        :type date_to: :class:`datetime.date` | None
+        :type date_to: datetime.date | None
         :param sort: Public sort tokens (e.g., ``["-measured_on"]``).
         :type sort: Iterable[str] | None
         :param limit: Optional limit.
@@ -109,7 +115,7 @@ class SubjectBodyMetricsRepository(BaseRepository[SubjectBodyMetrics]):
         :param offset: Optional offset.
         :type offset: int | None
         :returns: List of rows.
-        :rtype: list[:class:`app.models.subject.SubjectBodyMetrics`]
+        :rtype: list[SubjectBodyMetrics]
         """
         stmt: Select[Any] = select(self.model).where(self.model.subject_id == subject_id)
 
@@ -147,17 +153,17 @@ class SubjectBodyMetricsRepository(BaseRepository[SubjectBodyMetrics]):
         Paginate metrics for a subject with optional date range.
 
         :param pagination: Pagination parameters.
-        :type pagination: :class:`app.repositories.base.Pagination`
+        :type pagination: Pagination
         :param subject_id: Subject identifier.
         :type subject_id: int
         :param date_from: Inclusive lower bound for ``measured_on``.
-        :type date_from: :class:`datetime.date` | None
+        :type date_from: datetime.date | None
         :param date_to: Inclusive upper bound for ``measured_on``.
-        :type date_to: :class:`datetime.date` | None
+        :type date_to: datetime.date | None
         :param with_total: Whether to compute total rows.
         :type with_total: bool
         :returns: Page with items and metadata.
-        :rtype: :class:`app.repositories.base.Page`
+        :rtype: Page[SubjectBodyMetrics]
         """
         stmt: Select[Any] = select(self.model).where(self.model.subject_id == subject_id)
 

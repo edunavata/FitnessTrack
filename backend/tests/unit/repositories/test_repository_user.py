@@ -6,11 +6,13 @@ from tests.factories.user import UserFactory
 
 
 class TestUserRepository:
+    """Ensure ``UserRepository`` performs core persistence operations."""
     @pytest.fixture()
     def repo(self):
         return UserRepository()
 
     def test_create_and_get_user(self, repo, session):
+        """Create a user and fetch it by email to verify retrieval."""
         u = UserFactory(email="alice@example.com", username="alice")
         session.add(u)
         session.commit()
@@ -21,6 +23,7 @@ class TestUserRepository:
         assert fetched.username == "alice"
 
     def test_exists_by_email(self, repo, session):
+        """Return existence flags for known and unknown email addresses."""
         u = UserFactory(email="bob@example.com")
         session.add(u)
         session.commit()
@@ -29,6 +32,7 @@ class TestUserRepository:
         assert not repo.exists_by_email("nonexistent@example.com")
 
     def test_update_password(self, repo, session):
+        """Update a user's password hash and verify authentication works."""
         u = UserFactory(email="c@example.com", password_hash="x")
         session.add(u)
         session.commit()
@@ -42,6 +46,7 @@ class TestUserRepository:
         assert refreshed.verify_password("newpass123")
 
     def test_authenticate_valid_and_invalid(self, repo, session):
+        """Authenticate with correct credentials and reject invalid attempts."""
         u = UserFactory(email="auth@example.com", username="authuser")
         u.password = "strongpass"
         session.add(u)
@@ -55,6 +60,7 @@ class TestUserRepository:
         assert repo.authenticate("nope@example.com", "strongpass") is None
 
     def test_safe_update_fields(self, repo, session):
+        """Assign whitelisted fields and reject disallowed keys."""
         u = UserFactory()
         session.add(u)
         session.commit()
