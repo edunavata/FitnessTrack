@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import logging
 from http import HTTPStatus
-from typing import Any, cast
-from uuid import uuid4
+from typing import Any
 
-from flask import Flask, Response, g, jsonify, request
+from flask import Flask, Response, jsonify, request
 from werkzeug.exceptions import HTTPException
 from psycopg2 import errorcodes as pgcodes
 
@@ -24,24 +23,7 @@ except Exception:  # pragma: no cover
 
 log = logging.getLogger(__name__)
 
-
-def _ensure_request_id() -> str:
-    """
-    Get or generate a request-scoped correlation identifier.
-
-    The function reads standard correlation headers and falls back
-    to a newly generated UUID4. The value is stored in ``g.request_id``.
-
-    :returns: Correlation/request identifier.
-    :rtype: str
-    """
-    if hasattr(g, "request_id"):
-        return cast(str, g.request_id)
-
-    hdr = request.headers.get("X-Request-Id") or request.headers.get("X-Correlation-Id")
-    req_id = hdr or str(uuid4())
-    g.request_id = req_id
-    return req_id
+from app.core.logger import ensure_request_id
 
 
 def _http_status_to_code(status_code: int) -> str:
@@ -92,7 +74,7 @@ def _as_problem(
     if details:
         problem["details"] = details
     # Always attach correlation id
-    problem["request_id"] = _ensure_request_id()
+    problem["request_id"] = ensure_request_id()
     return problem
 
 
@@ -212,7 +194,7 @@ def init_app(app: Flask) -> None:
     @app.before_request
     def _seed_request_id() -> None:
         """Seed request id early for logs and downstream usage."""
-        _ensure_request_id()
+        ensure_request_id()
 
     @app.errorhandler(APIError)
     def handle_api_error(err: APIError):
