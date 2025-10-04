@@ -1,0 +1,90 @@
+"""User repository for persistence and authentication utilities."""
+
+from __future__ import annotations
+
+from typing import cast
+
+from sqlalchemy import select
+
+from app.models.user import User
+from app.repositories import base as base_module
+from app.repositories.base import BaseRepository
+
+# Re-exported for tests expecting a public alias
+apply_sorting = base_module._apply_sorting
+
+
+class UserRepository(BaseRepository[User]):
+    """Persistence-only repository for :class:`User`.
+
+    This repository focuses on safe lookup, filtering, and password operations.
+    It NEVER handles JWT or session creation — only DB-level user management.
+    """
+
+    model = User
+
+    # ---------------------------- Whitelists ----------------------------
+
+    def _sortable_fields(self):
+        """Expose sortable fields for safe public sorting."""
+        return {
+            "id": User.id,
+            "email": User.email,
+            "username": User.username,
+            "created_at": User.created_at,
+        }
+
+    def _filterable_fields(self):
+        """Whitelist fields safe for equality filters."""
+        return {
+            "email": User.email,
+            "username": User.username,
+        }
+
+    def _updatable_fields(self):
+        """Publicly allowed updatable fields (not including password)."""
+        return {"email", "username", "full_name"}
+
+    # ---------------------------- Lookup helpers ----------------------------
+
+    def get_by_email(self, email: str) -> User | None:
+        """Fetch a user by email (case-insensitive).
+
+        :param email: Email to search.
+        :returns: User or None.
+        """
+        stmt = select(User).where(User.email == email.lower().strip())
+        stmt = self._default_eagerload(stmt)
+        result = self.session.execute(stmt).scalars().first()
+        return cast(User | None, result)
+
+    def exists_by_email(self, email: str) -> bool:
+        """Return True if a user with this email exists."""
+        stmt = select(User.id).where(User.email == email.lower().strip())
+        return bool(self.session.execute(stmt).first())
+
+    # ---------------------------- Password ops ----------------------------
+
+    def update_password(self, user_id: int, new_password: str) -> None:
+        """Update a user's password securely (re-hash and flush)."""
+        user = self.get(user_id)
+        if not user:
+            raise ValueError(f"User {user_id} not found.")
+        user.password = new_password  # invokes setter → hash
+        self.flush()
+
+    def authenticate(self, email: str, password: str) -> User | None:
+        """Authenticate a user by email and password.
+
+        :returns: User if credentials valid; otherwise None.
+        """
+        user = self.get_by_email(email)
+        if not user or not user.verify_password(password):
+            return None
+        return user
+
+    # ---------------------------- Eager loading ----------------------------
+
+    def _default_eagerload(self, stmt):
+        """No joins needed yet, but kept for consistency."""
+        return stmt
