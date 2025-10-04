@@ -1,4 +1,3 @@
-# app/repositories/base.py
 """Generic repository base and query utilities for SQLAlchemy 2.x.
 
 This module centralizes persistence-only concerns shared by all repositories:
@@ -29,9 +28,10 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Generic, TypeVar, cast
 
-from app.core.extensions import db
 from sqlalchemy import Select, and_, func, select
 from sqlalchemy.orm import InstrumentedAttribute, Session
+
+from app.core.extensions import db
 
 E = TypeVar("E")  # SQLAlchemy mapped entity type
 
