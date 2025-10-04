@@ -38,6 +38,18 @@ def env_bool(name: str, default: bool = False) -> bool:
     return str(val).strip().lower() in {"1", "true", "yes", "y", "on"}
 
 
+def env_int(name: str, default: int) -> int:
+    """Parse an integer from an environment variable."""
+
+    val = os.getenv(name)
+    if val is None:
+        return default
+    try:
+        return int(val)
+    except ValueError:
+        return default
+
+
 class BaseConfig:
     """Base configuration shared across environments.
 
@@ -93,6 +105,16 @@ class BaseConfig:
     # Logging & CORS
     LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
     CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:5173")
+
+    # Caching & rate limiting
+    CACHE_TYPE = os.getenv("CACHE_TYPE", "SimpleCache")
+    CACHE_DEFAULT_TIMEOUT = env_int("CACHE_DEFAULT_TIMEOUT", 300)
+    RATELIMIT_DEFAULT: list[str] = []
+    AUTH_LOGIN_RATE_LIMIT = os.getenv("AUTH_LOGIN_RATE_LIMIT", "5 per minute")
+
+    # App metadata
+    APP_VERSION = os.getenv("APP_VERSION", "dev")
+    APP_COMMIT = os.getenv("APP_COMMIT", "unknown")
 
     # Built-ins de Flask
     DEBUG = False

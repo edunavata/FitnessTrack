@@ -1,17 +1,24 @@
-"""API v1 blueprint package bundling authentication and health routes."""
+"""API v1 blueprint registration."""
 
 from __future__ import annotations
 
 from flask import Blueprint
 
-API_VERSION = "v1"
+bp_v1 = Blueprint("api_v1", __name__)
 
-# Import blueprints *only here* to keep imports localized and avoid cycles.
-from .auth import bp as auth_bp  # noqa: E402
-from .health import bp as health_bp  # noqa: E402
 
-# Each tuple: (blueprint, url_prefix_relative_to_version)
-REGISTRY: list[tuple[Blueprint, str]] = [
-    (health_bp, ""),  # -> /api/v1
-    (auth_bp, "/auth"),  # -> /api/v1/auth
-]
+def _register_blueprints() -> None:
+    from . import auth, exercises, health, routines, subjects, users, workouts
+
+    bp_v1.register_blueprint(health.bp)
+    bp_v1.register_blueprint(auth.bp)
+    bp_v1.register_blueprint(users.bp)
+    bp_v1.register_blueprint(exercises.bp)
+    bp_v1.register_blueprint(routines.bp)
+    bp_v1.register_blueprint(workouts.bp)
+    bp_v1.register_blueprint(subjects.bp)
+
+
+_register_blueprints()
+
+__all__ = ["bp_v1"]
