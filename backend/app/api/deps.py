@@ -1,4 +1,4 @@
-"""Shared API dependencies: auth stubs, pagination, and request utilities."""
+"""Shared API helpers for request parsing and cross-cutting concerns."""
 
 from __future__ import annotations
 
@@ -7,64 +7,44 @@ import time
 from dataclasses import dataclass
 from typing import Any, Callable, Iterable, Mapping, TypeVar
 
-from flask import Response, current_app, g, jsonify, request
-from sqlalchemy.orm import Query
+from flask import Response, current_app, jsonify, request
+from flask_jwt_extended import get_jwt, verify_jwt_in_request
+from sqlalchemy import Select, func, select
+from sqlalchemy.orm import Session
 
+from app.core.errors import Forbidden
 from app.core.extensions import db
-
-from app.core.errors import Unauthorized
+from app.schemas.common import PaginationQuerySchema
 
 F = TypeVar("F", bound=Callable[..., Any])
 
 
 @dataclass(slots=True)
 class Pagination:
-    """Parsed pagination parameters extracted from the query string."""
+    """Container holding pagination arguments parsed from the request."""
 
     page: int
     limit: int
     sort: list[str]
 
 
-def parse_pagination(default_limit: int = 50, max_limit: int = 100) -> Pagination:
-    """Parse ``page``, ``limit``, and ``sort`` query parameters.
+def parse_pagination(default_limit: int = 20, max_limit: int = 200) -> Pagination:
+    """Parse pagination parameters from ``request.args`` using Marshmallow."""
 
-    :param default_limit: Default number of records per page when ``limit`` is omitted.
-    :type default_limit: int
-    :param max_limit: Upper bound to guard against unbounded result sets.
-    :type max_limit: int
-    :returns: Parsed pagination container ready for query helpers.
-    :rtype: Pagination
-    """
-
-    page = request.args.get("page", type=int) or 1
-    limit = request.args.get("limit", type=int) or default_limit
-    if limit > max_limit:
-        limit = max_limit
-    sort_raw = request.args.get("sort", "")
-    sort = [segment.strip() for segment in sort_raw.split(",") if segment.strip()]
-    return Pagination(
-        page=page if page > 0 else 1, limit=limit if limit > 0 else default_limit, sort=sort
-    )
+    schema = PaginationQuerySchema(default_limit=default_limit, max_limit=max_limit)
+    data = schema.load(request.args)
+    return Pagination(page=data["page"], limit=data["limit"], sort=data["sort"])
 
 
 def apply_sorting(
-    query: Query, sort_fields: Mapping[str, Any], sort_params: Iterable[str]
-) -> Query:
-    """Apply client-provided sorting to a SQLAlchemy query.
-
-    :param query: Base SQLAlchemy query object.
-    :type query: sqlalchemy.orm.Query
-    :param sort_fields: Mapping between external sort keys and SQLAlchemy columns/expressions.
-    :type sort_fields: collections.abc.Mapping
-    :param sort_params: Sequence of raw sort tokens (``field`` or ``-field`` for descending).
-    :type sort_params: collections.abc.Iterable[str]
-    :returns: Query with ordering clauses applied.
-    :rtype: sqlalchemy.orm.Query
-    """
+    statement: Select[Any],
+    sort_fields: Mapping[str, Any],
+    tokens: Iterable[str],
+) -> Select[Any]:
+    """Apply ordering clauses to a SQLAlchemy ``Select`` statement."""
 
     order_clauses: list[Any] = []
-    for raw in sort_params:
+    for raw in tokens:
         direction = raw.startswith("-")
         key = raw[1:] if direction else raw
         column = sort_fields.get(key)
@@ -72,80 +52,55 @@ def apply_sorting(
             continue
         order_clauses.append(column.desc() if direction else column.asc())
     if order_clauses:
-        query = query.order_by(*order_clauses)
-    return query
+        statement = statement.order_by(*order_clauses)
+    return statement
 
 
-def paginate_query(query: Query, pagination: Pagination) -> tuple[list[Any], int]:
-    """Apply pagination to a SQLAlchemy query returning items and total count.
+def paginate_query(
+    session: Session,
+    statement: Select[Any],
+    pagination: Pagination,
+) -> tuple[list[Any], int]:
+    """Execute the select with pagination returning items and total count."""
 
-    :param query: SQLAlchemy query to paginate.
-    :type query: sqlalchemy.orm.Query
-    :param pagination: Pagination parameters derived from the request.
-    :type pagination: Pagination
-    :returns: Tuple with ``(items, total_count)``.
-    :rtype: tuple[list[Any], int]
-    """
-
-    total = query.order_by(None).count()
-    items = query.offset((pagination.page - 1) * pagination.limit).limit(pagination.limit).all()
-    return items, total
+    page = max(pagination.page, 1)
+    limit = max(pagination.limit, 1)
+    count_stmt = select(func.count()).select_from(statement.order_by(None).subquery())
+    total = session.execute(count_stmt).scalar_one_or_none() or 0
+    offset = (page - 1) * limit
+    paginated = statement.limit(limit).offset(offset)
+    items = list(session.execute(paginated).scalars())
+    return items, int(total)
 
 
-def get_session():
-    """Return the SQLAlchemy session bound to the Flask app.
-
-    :returns: Active SQLAlchemy session.
-    :rtype: sqlalchemy.orm.Session
-    """
+def get_session() -> Session:
+    """Return the SQLAlchemy session bound to the current application."""
 
     return db.session
 
 
 def require_auth(func: F) -> F:
-    """Decorator stub enforcing presence of an ``Authorization`` header.
-
-    The decorator ensures that mutating endpoints receive a bearer token. Full
-    JWT validation is intentionally deferred; the handler simply captures the
-    token for downstream TODO hooks.
-
-    :param func: View function to decorate.
-    :type func: collections.abc.Callable
-    :returns: Wrapped function that performs header validation.
-    :rtype: collections.abc.Callable
-    """
+    """Ensure the request carries a valid JWT access token."""
 
     @functools.wraps(func)
     def wrapper(*args: Any, **kwargs: Any):
-        auth_header = request.headers.get("Authorization")
-        if not auth_header or not auth_header.lower().startswith("bearer "):
-            raise Unauthorized("Missing or invalid Authorization header")
-        g.current_token = auth_header.split(" ", 1)[1]
+        verify_jwt_in_request(optional=False)
         return func(*args, **kwargs)
 
     return wrapper  # type: ignore[return-value]
 
 
 def require_scope(required: str) -> Callable[[F], F]:
-    """Decorator stub asserting a scope is present in the bearer token.
-
-    Until real JWT parsing is wired, the decorator simply logs the desired
-    scope and allows execution to continue.
-
-    :param required: Scope name expected on the access token.
-    :type required: str
-    :returns: Decorator for view functions.
-    :rtype: collections.abc.Callable
-    """
+    """Ensure the verified JWT contains the requested scope claim."""
 
     def decorator(func: F) -> F:
         @functools.wraps(func)
         def wrapper(*args: Any, **kwargs: Any):
-            token = getattr(g, "current_token", None)
-            current_app.logger.debug(
-                "Scope check placeholder", extra={"required": required, "token": token}
-            )
-            # TODO: Parse JWT claims and validate scopes/roles.
+            verify_jwt_in_request(optional=False)
+            claims = get_jwt() or {}
+            scopes = set(claims.get("scopes", []))
+            if required not in scopes:
+                raise Forbidden("Insufficient scope")
             return func(*args, **kwargs)
 
         return wrapper  # type: ignore[return-value]
@@ -154,69 +109,36 @@ def require_scope(required: str) -> Callable[[F], F]:
 
 
 def idempotency_cache() -> dict[str, Any]:
-    """Return the application-level in-memory idempotency cache.
-
-    The cache is a best-effort, process-local dictionary stored under the
-    ``idempotency_cache`` key in ``app.extensions``. Production deployments
-    should replace this with a persistent store (e.g., Redis) to survive
-    restarts and multi-worker setups.
-
-    :returns: Mutable dictionary storing cached responses.
-    :rtype: dict[str, Any]
-    """
+    """Return the process-local idempotency cache."""
 
     store = current_app.extensions.setdefault("idempotency_cache", {})
     return store  # type: ignore[return-value]
 
 
 def enforce_idempotency(key: str | None) -> tuple[bool, dict[str, Any] | None]:
-    """Ensure an ``Idempotency-Key`` is respected for unsafe requests.
-
-    Parameters
-    ----------
-    key:
-        Value from the ``Idempotency-Key`` header. ``None`` disables checks.
-
-    Returns
-    -------
-    tuple
-        ``(is_replay, cached_payload)``. When ``is_replay`` is ``True`` a
-        previous response blueprint is returned as ``cached_payload``. Callers
-        should short-circuit and convert it into a Flask response immediately.
-    """
+    """Check whether the provided ``Idempotency-Key`` was already used."""
 
     if not key:
         return False, None
     cache = idempotency_cache()
     cached = cache.get(key)
-    if cached is not None:
-        return True, cached
-    return False, None
+    if cached is None:
+        return False, None
+    return True, cached
 
 
 def store_idempotent_response(key: str | None, payload: dict[str, Any]) -> None:
-    """Persist a response blueprint for future ``Idempotency-Key`` replays.
-
-    :param key: Idempotency key value from the client.
-    :type key: str | None
-    :param payload: Serialized response blueprint to reuse.
-    :type payload: dict[str, Any]
-    """
+    """Persist the response blueprint for subsequent replays."""
 
     if not key:
         return
     cache = idempotency_cache()
     cache[key] = payload
+    # TODO: Replace the in-memory dictionary with Redis or another shared backend.
 
 
 def build_cached_response(payload: dict[str, Any]) -> Response:
-    """Instantiate a Flask response from cached idempotency metadata.
-
-    :param payload: Cached response blueprint returned by :func:`enforce_idempotency`.
-    :type payload: dict[str, Any]
-    :returns: Rehydrated Flask response.
-    :rtype: flask.Response
-    """
+    """Rehydrate a Flask response object from cached payload metadata."""
 
     response = json_response(payload.get("body", {}), status=payload.get("status", 200))
     for header, value in payload.get("headers", {}).items():
@@ -225,15 +147,7 @@ def build_cached_response(payload: dict[str, Any]) -> Response:
 
 
 def json_response(payload: Any, *, status: int = 200) -> Response:
-    """Serialize payload into a Flask JSON response with consistent mimetype.
-
-    :param payload: Serializable payload.
-    :type payload: Any
-    :param status: HTTP status code for the response.
-    :type status: int
-    :returns: Flask response with ``application/json`` MIME type.
-    :rtype: flask.Response
-    """
+    """Return a JSON response enforcing a consistent MIME type."""
 
     response = jsonify(payload)
     response.status_code = status
@@ -241,13 +155,7 @@ def json_response(payload: Any, *, status: int = 200) -> Response:
 
 
 def timing(func: F) -> F:
-    """Simple decorator measuring handler execution time for structured logs.
-
-    :param func: View function to wrap.
-    :type func: collections.abc.Callable
-    :returns: Wrapped function emitting debug timing logs.
-    :rtype: collections.abc.Callable
-    """
+    """Decorator capturing handler execution time in milliseconds."""
 
     @functools.wraps(func)
     def wrapper(*args: Any, **kwargs: Any):
@@ -256,9 +164,10 @@ def timing(func: F) -> F:
             return func(*args, **kwargs)
         finally:
             elapsed_ms = (time.perf_counter() - start) * 1000
+            request_endpoint = getattr(request, "endpoint", None)
             current_app.logger.debug(
-                "api.request.elapsed",
-                extra={"endpoint": request.endpoint, "elapsed_ms": round(elapsed_ms, 2)},
+                "request.elapsed",
+                extra={"endpoint": request_endpoint, "elapsed_ms": round(elapsed_ms, 2)},
             )
 
     return wrapper  # type: ignore[return-value]
