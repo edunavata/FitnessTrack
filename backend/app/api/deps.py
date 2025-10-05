@@ -5,24 +5,15 @@ from __future__ import annotations
 import functools
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
 from typing import Any, TypeVar, cast
 
 from flask import Response, current_app, g, jsonify, request
 
 from app.core.errors import Unauthorized
 from app.core.extensions import db
+from app.repositories.base import Pagination
 
 F = TypeVar("F", bound=Callable[..., Any])
-
-
-@dataclass(slots=True)
-class Pagination:
-    """Parsed pagination parameters extracted from the query string."""
-
-    page: int
-    limit: int
-    sort: list[str]
 
 
 def parse_pagination(default_limit: int = 50, max_limit: int = 100) -> Pagination:
