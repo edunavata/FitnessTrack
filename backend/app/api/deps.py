@@ -10,7 +10,6 @@ from typing import Any, TypeVar, cast
 from flask import Response, current_app, g, jsonify, request
 
 from app.core.errors import Unauthorized
-from app.core.extensions import db
 from app.repositories.base import Pagination
 
 F = TypeVar("F", bound=Callable[..., Any])
@@ -36,16 +35,6 @@ def parse_pagination(default_limit: int = 50, max_limit: int = 100) -> Paginatio
     return Pagination(
         page=page if page > 0 else 1, limit=limit if limit > 0 else default_limit, sort=sort
     )
-
-
-def get_session():
-    """Return the SQLAlchemy session bound to the Flask app.
-
-    :returns: Active SQLAlchemy session.
-    :rtype: sqlalchemy.orm.Session
-    """
-
-    return db.session
 
 
 def require_auth(func: F) -> F:
