@@ -4,12 +4,11 @@ from __future__ import annotations
 
 import functools
 import time
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, TypeVar, cast
 
 from flask import Response, current_app, g, jsonify, request
-from sqlalchemy.orm import Query
 
 from app.core.errors import Unauthorized
 from app.core.extensions import db
@@ -46,50 +45,6 @@ def parse_pagination(default_limit: int = 50, max_limit: int = 100) -> Paginatio
     return Pagination(
         page=page if page > 0 else 1, limit=limit if limit > 0 else default_limit, sort=sort
     )
-
-
-def apply_sorting(
-    query: Query, sort_fields: Mapping[str, Any], sort_params: Iterable[str]
-) -> Query:
-    """Apply client-provided sorting to a SQLAlchemy query.
-
-    :param query: Base SQLAlchemy query object.
-    :type query: sqlalchemy.orm.Query
-    :param sort_fields: Mapping between external sort keys and SQLAlchemy columns/expressions.
-    :type sort_fields: collections.abc.Mapping
-    :param sort_params: Sequence of raw sort tokens (``field`` or ``-field`` for descending).
-    :type sort_params: collections.abc.Iterable[str]
-    :returns: Query with ordering clauses applied.
-    :rtype: sqlalchemy.orm.Query
-    """
-
-    order_clauses: list[Any] = []
-    for raw in sort_params:
-        direction = raw.startswith("-")
-        key = raw[1:] if direction else raw
-        column = sort_fields.get(key)
-        if column is None:
-            continue
-        order_clauses.append(column.desc() if direction else column.asc())
-    if order_clauses:
-        query = query.order_by(*order_clauses)
-    return query
-
-
-def paginate_query(query: Query, pagination: Pagination) -> tuple[list[Any], int]:
-    """Apply pagination to a SQLAlchemy query returning items and total count.
-
-    :param query: SQLAlchemy query to paginate.
-    :type query: sqlalchemy.orm.Query
-    :param pagination: Pagination parameters derived from the request.
-    :type pagination: Pagination
-    :returns: Tuple with ``(items, total_count)``.
-    :rtype: tuple[list[Any], int]
-    """
-
-    total = query.order_by(None).count()
-    items = query.offset((pagination.page - 1) * pagination.limit).limit(pagination.limit).all()
-    return items, total
 
 
 def get_session():
