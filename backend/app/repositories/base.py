@@ -208,16 +208,32 @@ class BaseRepository(Generic[E]):
     #: SQLAlchemy mapped model (must be set by subclasses)
     model: type[E]
 
+    def __init__(self, session: Session | None = None) -> None:
+        """Initialise the repository with an optional SQLAlchemy session.
+
+        When no explicit session is provided the repository falls back to the
+        Flask-scoped session exposed by ``app.core.extensions``.
+
+        :param session: Session shared across the Unit of Work scope.
+        :type session: :class:`sqlalchemy.orm.Session` | None
+        """
+        self._session: Session | None = session
+
     # ------------------------------ Session access ---------------------------
 
     @property
     def session(self) -> Session:
         """Return the active SQLAlchemy session.
 
-        :returns: Bound session from Flask-SQLAlchemy extension.
+        Prefers the injected session when provided; otherwise uses the
+        Flask-scoped session managed by the extension.
+
+        :returns: Active session bound to the current Unit of Work.
         :rtype: :class:`sqlalchemy.orm.Session`
         """
-        return db.session
+        if self._session is not None:
+            return self._session
+        return cast(Session, db.session)
 
     # ------------------------------ Extensibility ----------------------------
 
