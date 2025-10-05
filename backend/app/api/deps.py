@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import functools
 import time
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable
 from typing import Any, TypeVar, cast
 
 from flask import Response, current_app, g, jsonify, request
@@ -14,6 +14,7 @@ from app.core.extensions import db
 from app.repositories.base import Pagination
 
 F = TypeVar("F", bound=Callable[..., Any])
+
 
 def parse_pagination(default_limit: int = 50, max_limit: int = 100) -> Pagination:
     """Parse ``page``, ``limit``, and ``sort`` query parameters.
