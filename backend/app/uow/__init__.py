@@ -5,10 +5,12 @@ application, alongside the abstract contracts that service layers depend on.
 """
 
 from .base import SupportsCommit, UnitOfWork
-from .sqlalchemy_uow import SQLAlchemyUnitOfWork
+from .sqlalchemy_uow import ReadOnlyViolation, SQLAlchemyReadOnlyUnitOfWork, SQLAlchemyUnitOfWork
 
 __all__ = [
     "SupportsCommit",
     "UnitOfWork",
     "SQLAlchemyUnitOfWork",
+    "SQLAlchemyReadOnlyUnitOfWork",
+    "ReadOnlyViolation",
 ]
