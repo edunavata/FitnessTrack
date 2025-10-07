@@ -5,7 +5,14 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from typing import Any
 
+from app.core import errors as api_errors
 from app.repositories.base import Pagination
+from app.services._shared.errors import (
+    ConflictError,
+    NotFoundError,
+    PreconditionFailedError,
+    ServiceError,
+)
 from app.uow.sqlalchemy_uow import (
     SQLAlchemyReadOnlyUnitOfWork,
     SQLAlchemyUnitOfWork,
@@ -110,11 +117,39 @@ class BaseService:
 
     def translate_exceptions(self, exc: Exception) -> Exception:
         """
-        Map low-level exceptions to application-level errors.
+        Map domain/service-level errors to API-level (HTTP) errors.
 
-        .. note::
-           Override in subclasses to translate IntegrityError, NotFound, etc.
+        :param exc: Exception raised within the service.
+        :type exc: Exception
+        :returns: Translated exception ready to be re-raised.
+        :rtype: Exception
         """
+        # --- Domain <-> API translation ------------------------------------
+        if isinstance(exc, NotFoundError):
+            # → 404 Not Found
+            return api_errors.NotFound(str(exc))
+
+        if isinstance(exc, ConflictError):
+            # → 409 Conflict
+            return api_errors.Conflict(str(exc))
+
+        if isinstance(exc, PreconditionFailedError):
+            # → 412 Precondition Failed
+            return api_errors.APIError(
+                message=str(exc),
+                status_code=412,
+                code="precondition_failed",
+            )
+
+        # Any other ServiceError subclass → 400 Bad Request
+        if isinstance(exc, ServiceError):
+            return api_errors.APIError(
+                message=str(exc),
+                status_code=400,
+                code="bad_request",
+            )
+
+        # Fallback: return untouched (will bubble up to Flask handler)
         return exc
 
     # --------------------------- ETag helpers -------------------------------
