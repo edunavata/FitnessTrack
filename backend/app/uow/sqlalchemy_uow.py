@@ -9,7 +9,7 @@ from contextlib import suppress
 from sqlalchemy import event, text
 from sqlalchemy.engine import Connection
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import SessionTransaction
+from sqlalchemy.orm import Session, SessionTransaction
 
 from app.core.extensions import db
 from app.repositories import (
@@ -27,7 +27,24 @@ from app.repositories import (
 from app.uow.base import UnitOfWork
 
 
-class SQLAlchemyUnitOfWork(UnitOfWork):
+class SQLAlchemyRepositoryContainer:
+    """Provide repository instances that share a SQLAlchemy session."""
+
+    def __init__(self, *, session: Session) -> None:
+        self.session = session
+        self.users = UserRepository(session=self.session)
+        self.subjects = SubjectRepository(session=self.session)
+        self.subject_body_metrics = SubjectBodyMetricsRepository(session=self.session)
+        self.exercises = ExerciseRepository(session=self.session)
+        self.tags = TagRepository(session=self.session)
+        self.routines = RoutineRepository(session=self.session)
+        self.subject_routines = SubjectRoutineRepository(session=self.session)
+        self.cycles = CycleRepository(session=self.session)
+        self.workout_sessions = WorkoutSessionRepository(session=self.session)
+        self.exercise_set_logs = ExerciseSetLogRepository(session=self.session)
+
+
+class SQLAlchemyUnitOfWork(SQLAlchemyRepositoryContainer, UnitOfWork):
     """
     SQLAlchemy-backed UoW using the Flask-scoped session.
 
@@ -40,19 +57,7 @@ class SQLAlchemyUnitOfWork(UnitOfWork):
         All repositories receive the same session instance so that they operate
         within the identical transactional context.
         """
-        self.session = db.session
-
-        # Repository instances share the same transactional session.
-        self.users = UserRepository(session=self.session)
-        self.subjects = SubjectRepository(session=self.session)
-        self.subject_body_metrics = SubjectBodyMetricsRepository(session=self.session)
-        self.exercises = ExerciseRepository(session=self.session)
-        self.tags = TagRepository(session=self.session)
-        self.routines = RoutineRepository(session=self.session)
-        self.subject_routines = SubjectRoutineRepository(session=self.session)
-        self.cycles = CycleRepository(session=self.session)
-        self.workout_sessions = WorkoutSessionRepository(session=self.session)
-        self.exercise_set_logs = ExerciseSetLogRepository(session=self.session)
+        super().__init__(session=db.session)
 
     def __enter__(self) -> SQLAlchemyUnitOfWork:
         # No-op: the session is lazily started on the first write.
@@ -75,7 +80,7 @@ class SQLAlchemyUnitOfWork(UnitOfWork):
         self.session.rollback()
 
 
-class SQLAlchemyReadOnlyUnitOfWork(UnitOfWork):
+class SQLAlchemyReadOnlyUnitOfWork(SQLAlchemyRepositoryContainer, UnitOfWork):
     """
     Read-only Unit of Work backed by the Flask-scoped SQLAlchemy session.
 
@@ -123,21 +128,9 @@ class SQLAlchemyReadOnlyUnitOfWork(UnitOfWork):
         isolation_level: str | None = "READ COMMITTED",
         enforce_db_readonly: bool = True,
     ) -> None:
-        self.session = db.session
+        super().__init__(session=db.session)
         self.isolation_level = isolation_level
         self.enforce_db_readonly = enforce_db_readonly
-
-        # Repository instances share the same session/transaction context.
-        self.users = UserRepository(session=self.session)
-        self.subjects = SubjectRepository(session=self.session)
-        self.subject_body_metrics = SubjectBodyMetricsRepository(session=self.session)
-        self.exercises = ExerciseRepository(session=self.session)
-        self.tags = TagRepository(session=self.session)
-        self.routines = RoutineRepository(session=self.session)
-        self.subject_routines = SubjectRoutineRepository(session=self.session)
-        self.cycles = CycleRepository(session=self.session)
-        self.workout_sessions = WorkoutSessionRepository(session=self.session)
-        self.exercise_set_logs = ExerciseSetLogRepository(session=self.session)
 
         # Internal state for listener lifecycle and transaction scope
         self._conn: Connection | None = None
