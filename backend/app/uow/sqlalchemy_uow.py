@@ -4,12 +4,12 @@ SQLAlchemy implementation of UnitOfWork for Flask.
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from typing import Any, Protocol
+from contextlib import suppress
 
 from sqlalchemy import event, text
 from sqlalchemy.engine import Connection
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import SessionTransaction
 
 from app.core.extensions import db
 from app.repositories import (
@@ -25,16 +25,6 @@ from app.repositories import (
     WorkoutSessionRepository,
 )
 from app.uow.base import UnitOfWork
-
-# --------------------------------------------------------------------------- #
-# Supported isolation levels (cross-dialect reference)
-# --------------------------------------------------------------------------- #
-
-VALID_ISOLATION_LEVELS_BY_DIALECT = {
-    "postgresql": {"READ COMMITTED", "REPEATABLE READ", "SERIALIZABLE"},
-    "mysql": {"READ UNCOMMITTED", "READ COMMITTED", "REPEATABLE READ", "SERIALIZABLE"},
-    "sqlite": {"AUTOCOMMIT", "SERIALIZABLE"},
-}
 
 
 class SQLAlchemyUnitOfWork(UnitOfWork):
@@ -85,104 +75,47 @@ class SQLAlchemyUnitOfWork(UnitOfWork):
         self.session.rollback()
 
 
-# --------------------------------------------------------------------------- #
-# Read-only UoW
-# --------------------------------------------------------------------------- #
-
-# -------------------------- Read-only strategy API -------------------------- #
-
-
-class ReadOnlyStrategy(Protocol):
-    """
-    Strategy for applying database-level READ ONLY semantics.
-
-    The strategy decides if and how to enable transaction-level READ ONLY for a
-    given dialect, and at which phase (pre- or post- BEGIN).
-    """
-
-    def pre_begin(self, conn: Connection) -> None:
-        """Hook executed before the ORM transaction starts."""
-        ...
-
-    def post_begin(self, session) -> None:
-        """Hook executed after the ORM transaction starts."""
-        ...
-
-
-class NoopReadOnlyStrategy:
-    """Fallback strategy for dialects without transaction-level READ ONLY."""
-
-    def pre_begin(self, conn: Connection) -> None:
-        return
-
-    def post_begin(self, session) -> None:
-        return
-
-
-class PostgresReadOnlyStrategy:
-    """PostgreSQL requires SET TRANSACTION READ ONLY *after* BEGIN."""
-
-    def pre_begin(self, conn: Connection) -> None:
-        return
-
-    def post_begin(self, session) -> None:
-        session.execute(text("SET TRANSACTION READ ONLY"))
-
-
-class MySQLReadOnlyStrategy:
-    """MySQL/MariaDB apply SET TRANSACTION READ ONLY *before* the next BEGIN."""
-
-    def pre_begin(self, conn: Connection) -> None:
-        conn.exec_driver_sql("SET TRANSACTION READ ONLY")
-
-    def post_begin(self, session) -> None:
-        return
-
-
-def select_readonly_strategy(dialect_name: str | None, enabled: bool) -> ReadOnlyStrategy:
-    """
-    Choose an appropriate READ ONLY strategy based on dialect.
-
-    Parameters
-    ----------
-    dialect_name:
-        SQLAlchemy dialect name (e.g. "postgresql", "mysql", "sqlite").
-    enabled:
-        Whether DB-level READ ONLY enforcement is requested.
-
-    Returns
-    -------
-    ReadOnlyStrategy
-        Strategy instance to use for the current transaction.
-    """
-    if not enabled or not dialect_name:
-        return NoopReadOnlyStrategy()
-    if dialect_name == "postgresql":
-        return PostgresReadOnlyStrategy()
-    if dialect_name in {"mysql", "mariadb"}:
-        return MySQLReadOnlyStrategy()
-    # SQLite / others: no portable per-transaction READ ONLY
-    return NoopReadOnlyStrategy()
-
-
-# --------------------------- Read-only UoW class --------------------------- #
-
-
-class ReadOnlyViolation(RuntimeError):
-    """Raised when a write is attempted within a read-only Unit of Work."""
-
-
 class SQLAlchemyReadOnlyUnitOfWork(UnitOfWork):
     """
     Read-only Unit of Work backed by the Flask-scoped SQLAlchemy session.
 
     This UoW:
     - Optionally sets the transaction isolation level via
-      ``execution_options(isolation_level=...)``.
-    - Applies database-level READ ONLY (dialect-aware strategy) when enabled.
+      ``SET TRANSACTION ISOLATION LEVEL <...>`` (dialect-aware).
+    - Applies database-level READ ONLY when enabled (``SET TRANSACTION READ ONLY``).
     - Installs portable write-guards and always rolls back on exit.
     - Disallows ``commit()`` by design.
+
+    Parameters
+    ----------
+    isolation_level:
+        Optional transaction isolation level hint. Common values:
+        ``"READ COMMITTED"`` (default) or ``"REPEATABLE READ"``.
+        If ``None``, the connection's default is used.
+    enforce_db_readonly:
+        If ``True`` (default), applies ``SET TRANSACTION READ ONLY`` when supported.
+
+    Notes
+    -----
+    *PostgreSQL*: fully supported (read-only + isolation).
+    *MySQL/MariaDB*: ``SET TRANSACTION READ ONLY`` supported on modern versions.
+    *SQLite*: read-only flag is not supported; write-guards still prevent writes.
     """
+
+    # Guard patterns for portable "no write" at driver level
+    _WRITE_PREFIXES = (
+        "insert",
+        "update",
+        "delete",
+        "merge",
+        "alter",
+        "drop",
+        "truncate",
+        "create",
+        "replace",
+        "grant",
+        "revoke",
+    )
 
     def __init__(
         self,
@@ -190,7 +123,6 @@ class SQLAlchemyReadOnlyUnitOfWork(UnitOfWork):
         isolation_level: str | None = "READ COMMITTED",
         enforce_db_readonly: bool = True,
     ) -> None:
-
         self.session = db.session
         self.isolation_level = isolation_level
         self.enforce_db_readonly = enforce_db_readonly
@@ -207,146 +139,141 @@ class SQLAlchemyReadOnlyUnitOfWork(UnitOfWork):
         self.workout_sessions = WorkoutSessionRepository(session=self.session)
         self.exercise_set_logs = ExerciseSetLogRepository(session=self.session)
 
-        # Internal state
+        # Internal state for listener lifecycle and transaction scope
         self._conn: Connection | None = None
-        self._trans = None
-        self._dialect: str | None = None
-        self._prev_autoflush: bool | None = None
+        self._txn_ctx: SessionTransaction | None = None
+        self._listeners_installed = False
 
-        # Event listener function references (needed for proper removal).
-        self._orm_flush_fn: Callable[[Any, Any, Any], None] | None = None
-        self._core_sql_fn: Callable[[Any, Any, Any, Any, Any, Any], None] | None = None
-
-        # Strategy will be chosen lazily in __enter__ (once we know the dialect).
-        self._readonly_strategy: ReadOnlyStrategy = NoopReadOnlyStrategy()
+    # ----------------------------- Context Manager -----------------------------
 
     def __enter__(self) -> SQLAlchemyReadOnlyUnitOfWork:
         """
         Enter a read-only transactional scope.
 
-        Steps
-        -----
-        1) Acquire a connection and set the requested isolation level.
-        2) Pick and run the dialect-specific 'pre_begin' READ ONLY strategy.
-        3) Begin the ORM transaction.
-        4) Run the dialect-specific 'post_begin' READ ONLY strategy.
-        5) Install write-guards and disable autoflush.
+        Steps:
+        1. Begin an explicit transaction on the session.
+        2. Install write-guards to block ORM flushes and raw DML/DDL.
+        3. Apply dialect-aware ``SET TRANSACTION`` directives for isolation and read-only.
         """
-        # 1) Connection + isolation
+        # 1) Begin an explicit transaction right away to guarantee snapshot semantics.
+        #    Using a session transaction ensures subsequent queries run under this scope.
+        txn_ctx = self.session.begin()
+        self._txn_ctx = txn_ctx
+        txn_ctx.__enter__()  # enter context manager manually
+
+        # 2) Grab the underlying Connection bound to this session transaction.
         self._conn = self.session.connection()
-        self._dialect = self.session.bind.dialect.name if self.session.bind else None
+        dialect = self._conn.dialect.name
 
-        # Validate isolation level early
-        if self._dialect and self.isolation_level not in VALID_ISOLATION_LEVELS_BY_DIALECT.get(
-            self._dialect, set()
-        ):
-            raise ValueError(
-                f"Isolation level '{self.isolation_level}' not supported for dialect '{self._dialect}'."
+        # 3) Install write-guards (portable).
+        self._install_listeners()
+
+        # 4) Apply transaction characteristics as early as possible in the txn.
+        #    Use dialect-aware statements; ignore if not supported.
+        try:
+            if self.isolation_level:
+                # Standard SQL form supported by PostgreSQL and MySQL/MariaDB.
+                iso = self.isolation_level.upper().strip()
+                if iso not in (
+                    "READ COMMITTED",
+                    "REPEATABLE READ",
+                    "SERIALIZABLE",
+                    "READ UNCOMMITTED",
+                ):
+                    # Keep permissive but warn in logs; do not explode in runtime.
+                    db.logger.warning("Unknown isolation_level '%s'; attempting as-is.", iso)
+                self.session.execute(text(f"SET TRANSACTION ISOLATION LEVEL {iso}"))
+
+            if self.enforce_db_readonly and dialect in ("postgresql", "mysql", "mariadb"):
+                # SQLite doesn't support it; others may — best effort.
+                self.session.execute(text("SET TRANSACTION READ ONLY"))
+        except SQLAlchemyError as exc:
+            # If SET TRANSACTION is not supported, we keep the RO guard semantics
+            # and continue in read-only mode enforced by listeners.
+            db.logger.warning(
+                "SET TRANSACTION directives failed (%s). Falling back to guards-only.", exc
             )
-
-        if self.isolation_level:
-            self._conn = self._conn.execution_options(isolation_level=self.isolation_level)
-
-        # 2) Strategy: pre-begin hook
-        self._readonly_strategy = select_readonly_strategy(self._dialect, self.enforce_db_readonly)
-        self._readonly_strategy.pre_begin(self._conn)
-
-        # 3) Begin transaction at the Session level
-        self._trans = self.session.begin()
-
-        # 4) Strategy: post-begin hook
-        self._readonly_strategy.post_begin(self.session)
-
-        # 5) Guards + disable autoflush
-        self._install_write_guards()
-        self._prev_autoflush = self.session.autoflush
-        self.session.autoflush = False
 
         return self
 
     def __exit__(self, exc_type, exc, tb) -> None:
         """
-        Always roll back and remove guards.
+        Always roll back, remove listeners, and close the transactional scope.
         """
         try:
+            # No commit in RO mode; always rollback to end the transaction.
             self.rollback()
         finally:
-            if self._prev_autoflush is not None:
-                self.session.autoflush = self._prev_autoflush
-            self._remove_write_guards()
+            self._remove_listeners()
+            # Exit the session transaction context if we manually entered it.
+            if self._txn_ctx is not None:
+                try:
+                    self._txn_ctx.__exit__(exc_type, exc, tb)
+                finally:
+                    self._txn_ctx = None
+            self._conn = None
+
+    # ----------------------------- Public API ---------------------------------
 
     def commit(self) -> None:
         """
-        Disallowed in a read-only Unit of Work.
+        Disallow commit in read-only Unit of Work.
 
-        :raises ReadOnlyViolation: Always raised to signal misuse.
+        :raises RuntimeError: always, to prevent accidental writes.
         """
-        raise ReadOnlyViolation("commit() called on a read-only Unit of Work.")
+        raise RuntimeError("Read-only UnitOfWork does not allow commit().")
 
     def rollback(self) -> None:
-        """Roll back the current transaction (idempotent)."""
+        """Rollback the current transaction if active."""
         try:
-            if self._trans is not None:
-                self._trans.rollback()
-        finally:
-            self._trans = None
+            self.session.rollback()
+        except Exception:
+            # Best-effort rollback; re-raise to surface issues upstream if needed.
+            raise
 
-    # ------------------------------ Write Guards ---------------------------- #
+    # ----------------------------- Guards & Listeners --------------------------
 
-    def _install_write_guards(self) -> None:
-        """
-        Install ORM and Core level guards to detect writes.
+    def _install_listeners(self) -> None:
+        """Install ORM/db-level listeners to prevent any write attempt."""
+        if self._listeners_installed:
+            return
 
-        - ORM 'before_flush': blocks any pending changes (new/dirty/deleted).
-        - Core 'before_cursor_execute': consults ExecutionContext flags to
-          detect INSERT/UPDATE/DELETE, with a DDL fallback via simple prefix check.
-        """
-
-        def _raise_on_flush(session: Any, flush_context: Any, instances: Any) -> None:
+        # 1) Block ORM flushes that would emit DML.
+        def _before_flush(session, flush_context, instances):
             if session.new or session.dirty or session.deleted:
-                raise ReadOnlyViolation(
-                    "Attempted to flush changes inside a read-only Unit of Work."
+                raise RuntimeError(
+                    "Read-only UnitOfWork: ORM flush blocked (new/dirty/deleted objects present)."
                 )
 
-        def _raise_on_write_sql(
-            conn: Connection,
-            cursor: Any,
-            statement: str,
-            parameters: Any,
-            context: Any,
-            executemany: bool,
-        ) -> None:
-            # Prefer ExecutionContext flags when present (more robust than string parsing).
-            if context is not None and (
-                getattr(context, "isinsert", False)
-                or getattr(context, "isupdate", False)
-                or getattr(context, "isdelete", False)
-            ):
-                raise ReadOnlyViolation("DML attempted inside a read-only Unit of Work.")
+        event.listen(self.session, "before_flush", _before_flush)
 
-            # Fallback heuristic for DDL or raw text() statements.
-            s = statement.lstrip().upper()
-            if s.startswith(("CREATE", "ALTER", "DROP", "TRUNCATE", "RENAME")):
-                raise ReadOnlyViolation("DDL attempted inside a read-only Unit of Work.")
+        # 2) Block raw DML/DDL at cursor level (covers text() / core emits).
+        def _before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+            first_token = statement.lstrip().split(None, 1)[0].lower() if statement else ""
+            if first_token.startswith(self._WRITE_PREFIXES):
+                raise RuntimeError(
+                    f"Read-only UnitOfWork: SQL statement blocked: {first_token.upper()}"
+                )
 
-        # Keep function refs for proper removal
-        self._orm_flush_fn = _raise_on_flush
-        self._core_sql_fn = _raise_on_write_sql
+        # Bind the listener to the *Connection* if available, else Engine.
+        target = self._conn if self._conn is not None else self.session.get_bind()
+        event.listen(target, "before_cursor_execute", _before_cursor_execute)
 
-        event.listen(self.session, "before_flush", self._orm_flush_fn)
-        if self._conn is not None:
-            event.listen(self._conn, "before_cursor_execute", self._core_sql_fn)
+        # Keep refs for removal
+        self._ro__before_flush = _before_flush
+        self._ro__before_cursor_execute = _before_cursor_execute
+        self._listeners_installed = True
 
-    def _remove_write_guards(self) -> None:
-        """Detach event listeners to avoid leaking state across requests."""
-        try:
-            if self._orm_flush_fn is not None:
-                event.remove(self.session, "before_flush", self._orm_flush_fn)
-        except SQLAlchemyError:
-            pass
+    def _remove_listeners(self) -> None:
+        """Detach previously installed listeners."""
+        if not self._listeners_installed:
+            return
 
-        try:
-            if self._conn is not None and self._core_sql_fn is not None:
-                event.remove(self._conn, "before_cursor_execute", self._core_sql_fn)
-        except SQLAlchemyError:
-            pass
+        with suppress(Exception):
+            event.remove(self.session, "before_flush", self._ro__before_flush)
+
+        with suppress(Exception):
+            target = self._conn if self._conn is not None else self.session.get_bind()
+            event.remove(target, "before_cursor_execute", self._ro__before_cursor_execute)
+
+        self._listeners_installed = False
