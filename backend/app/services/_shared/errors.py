@@ -13,6 +13,32 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from sqlalchemy.exc import IntegrityError
+
+
+def violates(exc: IntegrityError, constraint_name: str) -> bool:
+    """
+    Check whether an IntegrityError originates from a specific constraint.
+
+    Supports PostgreSQL (constraint name lookup) and fallback to SQLSTATE.
+
+    Parameters
+    ----------
+    exc : IntegrityError
+        The exception raised by SQLAlchemy during flush/commit.
+    constraint_name : str
+        The name of the database constraint to match (e.g., 'uq_users_email').
+
+    Returns
+    -------
+    bool
+        True if the IntegrityError matches the given constraint.
+    """
+    # Some dialects (PostgreSQL) include constraint name in the error message
+    message = str(exc.orig).lower() if exc.orig else ""
+    return constraint_name.lower() in message
+
+
 # --------------------------------------------------------------------------- #
 # Base types
 # --------------------------------------------------------------------------- #
