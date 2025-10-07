@@ -41,7 +41,7 @@ class User(PKMixin, ReprMixin, TimestampMixin, db.Model):
 
     # Columns
     email: Mapped[str] = mapped_column(String(254), nullable=False)
-    password_hash: Mapped[str] = mapped_column(String(128), nullable=False)
+    password_hash: Mapped[str] = mapped_column(String(254), nullable=False)
     username: Mapped[str] = mapped_column(String(50), nullable=False)
     full_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
