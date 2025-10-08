@@ -22,11 +22,8 @@
 | **AuthService** | A | Ciclo de **autenticación** (login/refresh/logout). Opera sobre tokens/sesiones de User; no coordina otros agregados del dominio. | `users` (tokens/sesiones) |
 | **SubjectService** | A | Gestiona **Subject** (perfil, vínculo/desvínculo con User). Invariantes del sujeto; no necesita mutar otros agregados. | `subjects` |
 | **SubjectMetricsService** | A | **Series 1:N** de métricas del Subject. Un agregado propio por volumen/patrón de acceso; no cruza agregados. | `subject_body_metrics` |
-| **SavedRoutineService** | A | **Asociación** subject↔routine (guardar/quitar). Inserta relación idempotente; no muta `Subject` ni `Routine`. | `saved_routines`, `routines` |
 | **UserRegistrationService** | **P** | **Registro** crea **User + Subject** y enlaza en **una transacción**; requiere **idempotencia** y posibles side-effects. | `users`, `subjects` |
-| **IdentityQueryService** | Q | Lecturas de User (paginación/filters). No muta estado. | `users` |
-| **SubjectQueryService** | Q | Lecturas/proyecciones de Subject. No muta estado. | `subjects` |
-| **ProgressReportService** | Q | Lecturas compuestas (volumen, PRs). Varias consultas requieren snapshot consistente. | `workouts`, `exercises` |
+
 
 ## 4) Políticas por tipo (transacciones y concurrencia)
 - **A (Aggregate):** UoW **RW**; `update/delete` con **ETag (If-Match→412)**; `get_for_update` solo si hay contención real.
