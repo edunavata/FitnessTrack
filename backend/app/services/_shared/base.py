@@ -154,14 +154,14 @@ class BaseService:
 
     # --------------------------- ETag helpers -------------------------------
 
-    def ensure_if_match(self, provided_etag: str | None, current_etag: str) -> None:
+    def ensure_if_match(self, provided_etag: str | None, current_etag: str | None) -> None:
         """
         Validate If-Match precondition for optimistic concurrency.
 
         :param provided_etag: ETag provided by the client.
         :type provided_etag: str | None
-        :param current_etag: Current entity ETag.
-        :type current_etag: str
+        :param current_etag: Current entity ETag (``None`` when unsupported).
+        :type current_etag: str | None
         :raises PermissionError: When ETag does not match.
         """
         if provided_etag is None or provided_etag != current_etag:
