@@ -6,9 +6,10 @@ from __future__ import annotations
 
 from contextlib import suppress
 
+from flask import current_app
 from sqlalchemy import event, text
 from sqlalchemy.engine import Connection
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import InvalidRequestError, SQLAlchemyError
 from sqlalchemy.orm import Session, SessionTransaction
 
 from app.core.extensions import db
@@ -140,70 +141,84 @@ class SQLAlchemyReadOnlyUnitOfWork(SQLAlchemyRepositoryContainer, UnitOfWork):
     # ----------------------------- Context Manager -----------------------------
 
     def __enter__(self) -> SQLAlchemyReadOnlyUnitOfWork:
-        """
-        Enter a read-only transactional scope.
+        """Enter a transactional scope that enforces read protections when possible.
 
-        Steps:
-        1. Begin an explicit transaction on the session.
-        2. Install write-guards to block ORM flushes and raw DML/DDL.
-        3. Apply dialect-aware ``SET TRANSACTION`` directives for isolation and read-only.
+        The unit of work first tries to own a fresh transaction so it can issue
+        dialect-specific ``SET TRANSACTION`` directives that harden read-only
+        semantics. If SQLAlchemy reports that a transaction is already running
+        (``InvalidRequestError``), the scope gracefully attaches to that outer
+        transaction instead of erroring. In that fallback path the guards still
+        intercept ORM flushes and raw DML, but the effective permissions follow
+        the parent transaction (which may allow writes). This compatibility
+        behavior keeps sqlite-based tests from crashing on double-begin errors.
         """
-        # 1) Begin an explicit transaction right away to guarantee snapshot semantics.
-        #    Using a session transaction ensures subsequent queries run under this scope.
-        txn_ctx = self.session.begin()
-        self._txn_ctx = txn_ctx
-        txn_ctx.__enter__()  # enter context manager manually
+        self._txn_ctx = None  # default: not owning the transaction
+        self._conn = None
+        self._is_nested = False  # optional flag if you want to track nesting
 
-        # 2) Grab the underlying Connection bound to this session transaction.
+        try:
+            # Attempt to own a new top-level transaction.
+            txn_ctx = self.session.begin()
+            txn_ctx.__enter__()  # enter context manager explicitly
+            self._txn_ctx = txn_ctx  # we own this txn
+        except InvalidRequestError:
+            # A transaction is already begun on this Session (autobegin / outer fixture).
+            # Do not start a new one; just attach to the existing scope and inherit its
+            # read/write capabilities while still installing read guards.
+            # We intentionally skip SET TRANSACTION directives here.
+            pass
+
+        # Grab the underlying Connection bound to the current session/txn
         self._conn = self.session.connection()
         dialect = self._conn.dialect.name
 
-        # 3) Install write-guards (portable).
+        # Install read-only guards regardless of owning or attaching
         self._install_listeners()
 
-        # 4) Apply transaction characteristics as early as possible in the txn.
-        #    Use dialect-aware statements; ignore if not supported.
-        try:
-            if self.isolation_level:
-                # Standard SQL form supported by PostgreSQL and MySQL/MariaDB.
-                iso = self.isolation_level.upper().strip()
-                if iso not in (
-                    "READ COMMITTED",
-                    "REPEATABLE READ",
-                    "SERIALIZABLE",
-                    "READ UNCOMMITTED",
-                ):
-                    # Keep permissive but warn in logs; do not explode in runtime.
-                    db.logger.warning("Unknown isolation_level '%s'; attempting as-is.", iso)
-                self.session.execute(text(f"SET TRANSACTION ISOLATION LEVEL {iso}"))
+        # Apply SET TRANSACTION only if we own the top-level transaction
+        if self._txn_ctx is not None:
+            try:
+                if self.isolation_level:
+                    iso = self.isolation_level.upper().strip()
+                    if iso not in (
+                        "READ COMMITTED",
+                        "REPEATABLE READ",
+                        "SERIALIZABLE",
+                        "READ UNCOMMITTED",
+                    ):
+                        current_app.logger.warning(
+                            "Unknown isolation_level '%s'; attempting as-is.", iso
+                        )
+                    # Only meaningful on engines that support it and at top-level txn
+                    self.session.execute(text(f"SET TRANSACTION ISOLATION LEVEL {iso}"))
 
-            if self.enforce_db_readonly and dialect in ("postgresql", "mysql", "mariadb"):
-                # SQLite doesn't support it; others may — best effort.
-                self.session.execute(text("SET TRANSACTION READ ONLY"))
-        except SQLAlchemyError as exc:
-            # If SET TRANSACTION is not supported, we keep the RO guard semantics
-            # and continue in read-only mode enforced by listeners.
-            db.logger.warning(
-                "SET TRANSACTION directives failed (%s). Falling back to guards-only.", exc
-            )
+                if self.enforce_db_readonly and dialect in ("postgresql", "mysql", "mariadb"):
+                    self.session.execute(text("SET TRANSACTION READ ONLY"))
+            except SQLAlchemyError as exc:
+                current_app.logger.warning(
+                    "SET TRANSACTION directives failed (%s). Falling back to guards-only.", exc
+                )
 
         return self
 
     def __exit__(self, exc_type, exc, tb) -> None:
         """
-        Always roll back, remove listeners, and close the transactional scope.
+        Always remove guards. Roll back only if we own the transaction.
         """
         try:
-            # No commit in RO mode; always rollback to end the transaction.
-            self.rollback()
-        finally:
-            self._remove_listeners()
-            # Exit the session transaction context if we manually entered it.
+            # If we created a txn in __enter__, we are responsible for closing it.
             if self._txn_ctx is not None:
+                # Read-only scope → rollback to end our txn cleanly
+                with suppress(Exception):
+                    self.session.rollback()
+                # Exit the SessionTransaction context we entered
                 try:
                     self._txn_ctx.__exit__(exc_type, exc, tb)
                 finally:
                     self._txn_ctx = None
+        finally:
+            # Detach listeners in any case (owned or attached)
+            self._remove_listeners()
             self._conn = None
 
     # ----------------------------- Public API ---------------------------------
