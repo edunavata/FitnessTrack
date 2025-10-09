@@ -1,8 +1,8 @@
-"""initial schema
+"""initial schema migration
 
-Revision ID: a127e137cccd
+Revision ID: f7aa08af5b4a
 Revises:
-Create Date: 2025-10-07 02:06:08.190742
+Create Date: 2025-10-08 23:56:37.279468
 
 """
 
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = "a127e137cccd"
+revision = "f7aa08af5b4a"
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -147,6 +147,7 @@ def upgrade():
         sa.Column("password_hash", sa.String(length=254), nullable=False),
         sa.Column("username", sa.String(length=50), nullable=False),
         sa.Column("full_name", sa.String(length=100), nullable=True),
+        sa.Column("token_version", sa.Integer(), nullable=False),
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column(
             "created_at",

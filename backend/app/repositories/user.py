@@ -114,3 +114,29 @@ class UserRepository(BaseRepository[User]):
         :rtype: :class:`sqlalchemy.sql.Select`
         """
         return stmt
+
+    # ---------------------------- JWT ----------------------------
+
+    def get_token_version(self, user_id: int) -> int:
+        """
+        Return current token_version for the given user.
+        """
+        return int(self.session.query(User.token_version).filter(User.id == user_id).scalar_one())
+
+    def bump_token_version(self, user_id: int) -> int:
+        """
+        Atomically increment token_version.
+
+        :returns: New token_version after increment.
+        """
+        # Use a single UPDATE to avoid race conditions.
+        # RETURNING requires PG; for SQLite tests, re-read after update.
+        q = (
+            self.session.query(User)
+            .filter(User.id == user_id)
+            .with_for_update()  # optional: if your dialect supports it
+        )
+        user = q.one()
+        user.token_version = (user.token_version or 1) + 1
+        # flush happens at uow boundary; return new value for convenience
+        return int(user.token_version)

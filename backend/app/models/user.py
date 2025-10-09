@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy import Index, String, UniqueConstraint
+from sqlalchemy import Index, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, validates
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -44,6 +44,10 @@ class User(PKMixin, ReprMixin, TimestampMixin, db.Model):
     password_hash: Mapped[str] = mapped_column(String(254), nullable=False)
     username: Mapped[str] = mapped_column(String(50), nullable=False)
     full_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
+    token_version: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1
+    )  # global session version
 
     # Constraints & indexes
     __table_args__ = (
