@@ -90,6 +90,7 @@ Table users {
   password_hash  varchar(128) [not null]
   username       varchar(50) [not null, unique]           // direct PII (alias)
   full_name      varchar(100)                             // direct PII (opcional)
+  token_version  int [not null, default: 1]               // to revoke tokens
   created_at     timestamptz [not null, default: `now()`]
   updated_at     timestamptz [not null, default: `now()`]
 
