@@ -56,6 +56,10 @@ class BaseConfig:
         Disabled to avoid extra overhead from the event system.
     SQLALCHEMY_ECHO: bool
         When ``True`` SQLAlchemy logs SQL statements for debugging.
+    REDIS_URL: str | None
+        Optional connection string for the Redis instance used by infrastructure
+        components (tokens, caching, etc.). When ``None`` the application
+        skips initializing Redis integrations.
     JSON_SORT_KEYS: bool
         Keeps JSON output order stable when ``False``.
     PROPAGATE_EXCEPTIONS: bool
@@ -85,6 +89,7 @@ class BaseConfig:
     SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL", "sqlite:///./dev.db")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ECHO = env_bool("SQLALCHEMY_ECHO", False)
+    REDIS_URL = os.getenv("REDIS_URL")
 
     # Flask & JSON
     JSON_SORT_KEYS = False
