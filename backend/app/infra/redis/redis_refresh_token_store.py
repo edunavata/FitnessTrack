@@ -140,8 +140,8 @@ class RedisRefreshTokenStore(RefreshTokenStore):
                     def _b(s: bytes, default: str = "") -> str:
                         return s.decode() if s is not None else default
 
-                    revoked = _b(h.get(b"revoked"), "0") == "1"
-                    used = _b(h.get(b"used"), "0") == "1"
+                    revoked = _b(h.get(b"revoked"), "1") == "1"
+                    used = _b(h.get(b"used"), "1") == "1"
                     exp = int(_b(h.get(b"expires_at"), "0"))
                     fp = _b(h.get(b"fingerprint"))
                     tv = _b(h.get(b"tv"))  # copied as-is (string), same as Lua
