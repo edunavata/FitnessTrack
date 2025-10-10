@@ -2,9 +2,8 @@
 from __future__ import annotations
 
 from datetime import UTC, timedelta
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from app.repositories.user import UserRepository
 from app.services._shared.base import BaseService
 from app.services._shared.errors import NotFoundError, ServiceError
 from app.services._shared.ports.denylist_store import TokenDenylistStore
@@ -24,6 +23,9 @@ from app.services.auth.dto import (
     RefreshIn,
     TokenPairOut,
 )
+
+if TYPE_CHECKING:
+    from app.repositories import SubjectRepository, UserRepository
 
 # Token type identifiers (constructed dynamically to avoid static literals flagged by Bandit)
 ACCESS_TOKEN_TYPE = "".join(["ac", "cess"])
@@ -83,10 +85,15 @@ class AuthService(BaseService):
             if user is None:
                 raise ServiceError("Invalid credentials")
 
+            subject_repo: SubjectRepository = uow.subjects
+            subject = subject_repo.get_by_user_id(user.id)
+            if subject is None:
+                raise ServiceError("User has no associated subject")
+
             # Minimal, non-PII claims
             # NOTE: we standardize the name 'tv' for token_version snapshot.
             claims: dict[str, Any] = {
-                "uid": user.id,
+                "uid": subject.id,
                 "tv": getattr(user, "token_version", 1),
             }
 
@@ -186,8 +193,13 @@ class AuthService(BaseService):
             if user is None:
                 raise NotFoundError("User", user_id)
 
+            subject_repo: SubjectRepository = uow.subjects
+            related_subject = subject_repo.get_by_user_id(user.id)
+            if related_subject is None:
+                raise ServiceError("User has no associated subject")
+
             claims: dict[str, Any] = {
-                "uid": user.id,
+                "uid": related_subject.id,
                 "tv": getattr(user, "token_version", 1),
             }
 

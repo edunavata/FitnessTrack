@@ -16,6 +16,7 @@ from sqlalchemy import Select, select
 from sqlalchemy.orm import InstrumentedAttribute, joinedload
 
 from app.models.subject import SexEnum, Subject, SubjectProfile
+from app.models.user import User
 from app.repositories.base import BaseRepository
 
 
@@ -119,6 +120,21 @@ class SubjectRepository(BaseRepository[Subject]):
         stmt = self._default_eagerload(stmt)
         result = self.session.execute(stmt).scalars().first()
         return cast(Subject | None, result)
+
+    def get_associated_user(self, subject_id: int) -> User | None:
+        """
+        Retrieve the ``User`` linked to a subject when present.
+
+        :param subject_id: Subject identifier.
+        :type subject_id: int
+        :returns: Associated ``User`` or ``None`` when the link is absent.
+        :rtype: User | None
+        """
+        stmt: Select[Any] = (
+            select(User).join(Subject, Subject.user_id == User.id).where(Subject.id == subject_id)
+        )
+        result = self.session.execute(stmt).scalars().first()
+        return cast(User | None, result)
 
     # ---------------------------- Profile helpers -----------------------------
     def ensure_profile(self, subject_id: int) -> SubjectProfile:

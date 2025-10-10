@@ -8,6 +8,7 @@ from app.services._shared.ports.refresh_token_store import InMemoryRefreshTokenS
 from app.services._shared.ports.token_provider import StubTokenProvider
 from app.services.auth.dto import LoginIn, LogoutIn, RefreshIn, TokenPairOut
 from app.services.auth.service import AuthService
+from tests.factories.subject import SubjectFactory  # <-- IMPORTANTE
 from tests.factories.user import UserFactory
 
 
@@ -31,6 +32,7 @@ def service() -> AuthService:
 def test_login_issues_token_pair_and_registers_rt(service, session):
     """Login returns a token pair and registers the refresh session in the store."""
     user = UserFactory(email="a@a.com", password="x")
+    SubjectFactory(user=user)  # <-- crear Subject enlazado
     session.flush()
 
     pair = service.login(LoginIn(email=user.email, password="x"))
@@ -55,6 +57,7 @@ def test_login_invalid_credentials(service):
 def test_refresh_rotates_and_blocks_reuse(service, session):
     """First refresh rotates; reusing the old RT is treated as incident (ServiceError)."""
     user = UserFactory(password="x")
+    SubjectFactory(user=user)  # <-- crear Subject enlazado
     session.flush()
 
     pair1 = service.login(LoginIn(email=user.email, password="x"))
@@ -79,6 +82,7 @@ def test_refresh_rotates_and_blocks_reuse(service, session):
 def test_refresh_fails_if_user_deleted(service, session):
     """Refresh fails with NotFound if the user no longer exists."""
     user = UserFactory(password="x")
+    SubjectFactory(user=user)  # <-- crear Subject enlazado
     session.flush()
     pair = service.login(LoginIn(email=user.email, password="x"))
 
@@ -93,6 +97,7 @@ def test_refresh_fails_if_user_deleted(service, session):
 def test_logout_access_revokes_in_denylist(service, session):
     """Logout with access token adds its JTI to the denylist."""
     user = UserFactory(password="x")
+    SubjectFactory(user=user)  # <-- crear Subject enlazado
     session.flush()
     pair = service.login(LoginIn(email=user.email, password="x"))
 
@@ -106,6 +111,7 @@ def test_logout_access_revokes_in_denylist(service, session):
 def test_logout_refresh_revokes_in_store_and_all_sessions(service, session):
     """Logout with refresh marks it revoked; all_sessions revokes every RT for the user."""
     user = UserFactory(password="x")
+    SubjectFactory(user=user)  # <-- crear Subject enlazado
     session.flush()
     pair = service.login(LoginIn(email=user.email, password="x"))
 
@@ -129,6 +135,7 @@ def test_refresh_fingerprint_mismatch_requires_reauth(service, session, monkeypa
     If the fingerprint does not match the one stored with the RT, refresh is rejected.
     """
     user = UserFactory(password="x")
+    SubjectFactory(user=user)  # <-- crear Subject enlazado
     session.flush()
 
     pair = service.login(LoginIn(email=user.email, password="x"))
@@ -146,6 +153,7 @@ def test_reuse_triggers_token_version_bump(service, session):
     We check it by reloading the user after the reuse incident.
     """
     user = UserFactory(password="x")
+    SubjectFactory(user=user)  # <-- crear Subject enlazado
     session.flush()
     pair1 = service.login(LoginIn(email=user.email, password="x"))
 
