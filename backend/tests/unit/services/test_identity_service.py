@@ -1,5 +1,6 @@
 import pytest
 from app.repositories.user import UserRepository
+from app.services._shared.base import ServiceContext
 from app.services._shared.errors import (
     ConflictError,
     NotFoundError,
@@ -115,6 +116,7 @@ class TestIdentityService:
         user = UserFactory(email="old@example.com", username="oldname")
         dto = UserUpdateIn(email="updated@example.com", username="newname")
 
+        service.ctx = ServiceContext(actor_id=user.id)
         result = service.update_user(user.id, dto)
 
         assert result.email == "updated@example.com"
@@ -143,6 +145,7 @@ class TestIdentityService:
             old_password="oldpass",
             new_password="newpass123",
         )
+        service.ctx = ServiceContext(actor_id=user.id)
         service.change_password(dto)
 
         updated = repo.get(user.id)
@@ -157,6 +160,6 @@ class TestIdentityService:
             old_password="wrongpass",
             new_password="newpass",
         )
-
+        service.ctx = ServiceContext(actor_id=user.id)
         with pytest.raises(ServiceError, match="Old password is incorrect"):
             service.change_password(dto)
