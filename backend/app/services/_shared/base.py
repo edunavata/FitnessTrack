@@ -33,7 +33,7 @@ class ServiceContext:
     actor_id: int | None = None
     tenant_id: int | None = None
     request_id: str | None = None
-    sub_id: str | None = None
+    subject_id: str | None = None
 
 
 class BaseService:
