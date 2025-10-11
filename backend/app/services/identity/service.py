@@ -15,14 +15,12 @@ from typing import Any
 from app.repositories.user import UserRepository
 from app.services._shared.base import BaseService
 from app.services._shared.errors import (
-    AuthorizationError,
     ConflictError,
     NotFoundError,
     PreconditionFailedError,
     ServiceError,
     violates,
 )
-from app.services._shared.policies.common import is_owner
 from app.services.identity.dto import (
     UserAuthIn,
     UserAuthOut,
@@ -170,8 +168,7 @@ class IdentityService(BaseService):
                 raise NotFoundError("User", user_id)
 
             # --- Authorization: owner-only ---
-            if not is_owner(actor_id=self.ctx.actor_id, owner_id=user.id):
-                raise AuthorizationError("You can only update your own account.")
+            self.ensure_owner(actor_id=self.ctx.actor_id, owner_id=user.id)
 
             if dto.if_match:
                 current_etag = user.compute_etag()
@@ -226,8 +223,7 @@ class IdentityService(BaseService):
                 raise NotFoundError("User", dto.user_id)
 
             # --- Authorization: owner-only ---
-            if not is_owner(actor_id=self.ctx.actor_id, owner_id=user.id):
-                raise AuthorizationError("You can only change your own password.")
+            self.ensure_owner(actor_id=self.ctx.actor_id, owner_id=user.id)
 
             if not user.verify_password(dto.old_password):
                 raise ServiceError("Old password is incorrect.")
