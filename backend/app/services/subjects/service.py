@@ -65,6 +65,7 @@ class SubjectService(BaseService):
         :rtype: :class:`SubjectWithProfileOut`
         :raises ConflictError: If the given user already has a subject.
         """
+        self.ensure_owner(actor_id=self.ctx.actor_id, owner_id=dto.user_id)
         with self.rw_uow() as uow:
             repo: SubjectRepository = uow.subjects
 
@@ -99,6 +100,7 @@ class SubjectService(BaseService):
                                or the subject is linked to another user.
         :raises PreconditionFailedError: When ETag ``if_match`` mismatches.
         """
+        self.ensure_owner(actor_id=self.ctx.subject_id, owner_id=dto.subject_id)
         with self.rw_uow() as uow:
             repo: SubjectRepository = uow.subjects
             subject = repo.get_for_update(dto.subject_id)
@@ -142,6 +144,7 @@ class SubjectService(BaseService):
         :raises NotFoundError: If subject does not exist.
         :raises PreconditionFailedError: When ETag mismatches.
         """
+        self.ensure_owner(actor_id=self.ctx.subject_id, owner_id=dto.subject_id)
         with self.rw_uow() as uow:
             repo: SubjectRepository = uow.subjects
             subject = repo.get_for_update(dto.subject_id)
@@ -171,6 +174,7 @@ class SubjectService(BaseService):
         :raises NotFoundError: If subject does not exist.
         :raises PreconditionFailedError: If ``if_match`` provided and does not match.
         """
+        self.ensure_owner(actor_id=self.ctx.subject_id, owner_id=dto.subject_id)
         with self.rw_uow() as uow:
             repo: SubjectRepository = uow.subjects
             subject = repo.get_for_update(dto.subject_id)

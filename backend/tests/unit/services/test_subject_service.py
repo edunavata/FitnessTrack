@@ -53,6 +53,7 @@ class TestSubjectService:
         s = SubjectFactory()
         session.flush()
         dto = SubjectCreateIn(user_id=s.user_id)
+        service.ctx.actor_id = s.user_id  # Simulate auth as that user
 
         with pytest.raises(ConflictError):
             service.create_subject(dto)
@@ -67,6 +68,7 @@ class TestSubjectService:
         session.flush()
 
         dto = SubjectLinkUserIn(subject_id=s.id, user_id=u.id)
+        service.ctx.subject_id = s.id  # Simulate auth as that subject
         result = service.link_user(dto)
 
         assert result.subject.user_id == u.id
@@ -79,7 +81,7 @@ class TestSubjectService:
         u2 = UserFactory()
         s = SubjectFactory(user_id=u1.id)
         session.flush()
-
+        service.ctx.subject_id = s.id  # Simulate auth as that subject
         dto = SubjectLinkUserIn(subject_id=s.id, user_id=u2.id)
         with pytest.raises(ConflictError):
             service.link_user(dto)
@@ -90,7 +92,7 @@ class TestSubjectService:
         SubjectFactory(user_id=u.id)
         s2 = SubjectFactory(user_id=None)
         session.flush()
-
+        service.ctx.subject_id = s2.id  # Simulate auth as that subject
         dto = SubjectLinkUserIn(subject_id=s2.id, user_id=u.id)
         with pytest.raises(ConflictError):
             service.link_user(dto)
@@ -135,6 +137,7 @@ class TestSubjectService:
         session.flush()
 
         dto = SubjectUnlinkUserIn(subject_id=s.id)
+        service.ctx.subject_id = s.id  # Simulate auth as that subject
         out = service.unlink_user(dto)
 
         assert out.subject.user_id is None
@@ -144,6 +147,7 @@ class TestSubjectService:
     def test_unlink_user_not_found(self, service):
         """Unlink a non-existing subject → NotFoundError."""
         dto = SubjectUnlinkUserIn(subject_id=9999)
+        service.ctx.subject_id = 9999  # Simulate auth as that subject
         with pytest.raises(NotFoundError):
             service.unlink_user(dto)
 
@@ -174,6 +178,7 @@ class TestSubjectService:
             height_cm=180,
             dominant_hand="right",
         )
+        service.ctx.subject_id = s.id  # Simulate auth as that subject
         out = service.update_profile(dto)
 
         assert out.profile is not None
@@ -198,6 +203,7 @@ class TestSubjectService:
             subject_id=s.id,
             height_cm=0,  # invalid
         )
+        service.ctx.subject_id = s.id  # Simulate auth as that subject
         with pytest.raises(ValueError):
             service.update_profile(dto)
 
@@ -208,6 +214,7 @@ class TestSubjectService:
 
         # First, create the profile
         dto1 = SubjectUpdateProfileIn(subject_id=s.id, height_cm=170)
+        service.ctx.subject_id = s.id  # Simulate auth as that subject
         _ = service.update_profile(dto1)
 
         # Fresh instance for ETag check
@@ -221,6 +228,7 @@ class TestSubjectService:
 
         # Mismatch
         dto2 = SubjectUpdateProfileIn(subject_id=s.id, height_cm=171, if_match="bogus")
+
         with pytest.raises(PreconditionFailedError):
             service.update_profile(dto2)
 

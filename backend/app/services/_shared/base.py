@@ -203,4 +203,4 @@ class BaseService:
         from app.services._shared.policies.common import is_owner
 
         if not is_owner(actor_id=actor_id, owner_id=owner_id):
-            raise AuthorizationError(msg or "You can only access your own metrics.")
+            raise AuthorizationError(msg or "You don't have permission to access this resource.")

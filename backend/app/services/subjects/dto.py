@@ -28,7 +28,7 @@ class SubjectCreateIn:
     :type user_id: int | None
     """
 
-    user_id: int | None = None
+    user_id: int
 
 
 @dataclass(frozen=True, slots=True)
