@@ -106,3 +106,15 @@ class PreconditionFailedError(ServiceError):
 
     def __init__(self, message: str = "Precondition failed (ETag mismatch)") -> None:
         super().__init__(message)
+
+
+class AuthorizationError(ServiceError):
+    """
+    Raised when an authorization policy denies the requested action.
+
+    Mapping
+    -------
+    API layer should translate this to HTTP 403 Forbidden.
+    """
+
+    pass

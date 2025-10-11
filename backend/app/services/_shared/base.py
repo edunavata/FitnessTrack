@@ -27,11 +27,13 @@ class ServiceContext:
     :param actor_id: Authenticated user identifier.
     :param tenant_id: Multi-tenant scoping identifier.
     :param request_id: Correlation id for logging/tracing.
+    :param sub_id: Subject pseudonym id.
     """
 
     actor_id: int | None = None
     tenant_id: int | None = None
     request_id: str | None = None
+    sub_id: str | None = None
 
 
 class BaseService:
