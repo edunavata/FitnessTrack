@@ -33,7 +33,7 @@ class ServiceContext:
     actor_id: int | None = None
     tenant_id: int | None = None
     request_id: str | None = None
-    subject_id: str | None = None
+    subject_id: int | None = None
 
 
 class BaseService:
@@ -184,3 +184,23 @@ class BaseService:
         """
         # Hook: implement a store/cache if you adopt idempotency globally.
         return fn()
+
+    # --------------------------- AuthZ --------------------------------
+    def ensure_owner(self, actor_id: int | None, owner_id: int, *, msg: str | None = None) -> None:
+        """
+        Ensure the current actor is the resource owner. **actor_id** and **owner_id** should
+        refer to the same type of entity (user or subject).
+
+        :param actor_id: Authenticated actor (subject or user) id.
+        :param owner_id: Expected owner (subject or user) id.
+        :type owner_id: int
+        :param msg: Optional custom error message.
+        :type msg: str | None
+        :raises AuthorizationError: If actor is not the owner.
+        """
+        # NOTE: Keep policy centralized here so services stay DRY.
+        from app.services._shared.errors import AuthorizationError
+        from app.services._shared.policies.common import is_owner
+
+        if not is_owner(actor_id=actor_id, owner_id=owner_id):
+            raise AuthorizationError(msg or "You can only access your own metrics.")
