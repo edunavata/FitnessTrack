@@ -42,6 +42,7 @@ class TestSubjectMetricsService:
             resting_hr=55,
             notes="Leg day.",
         )
+        service.ctx.subject_id = s.id  # Simulate auth context
         out = service.upsert(dto)
 
         assert out.subject_id == s.id
@@ -72,6 +73,7 @@ class TestSubjectMetricsService:
             resting_hr=54,
             notes="Cut phase.",
         )
+        service.ctx.subject_id = s.id  # Simulate auth context
         out = service.upsert(dto)
 
         assert out.weight_kg == 79.4
@@ -102,6 +104,7 @@ class TestSubjectMetricsService:
             weight_kg=80.5,
             if_match=bad,
         )
+        service.ctx.subject_id = s.id  # Simulate auth context
         with pytest.raises(PreconditionFailedError):
             service.upsert(dto)
 
@@ -114,14 +117,17 @@ class TestSubjectMetricsService:
         row = SubjectBodyMetricsFactory(subject=s, measured_on=date(2025, 4, 1), weight_kg=78.9)
         session.flush()  # leave session clean for ro_uow
 
+        service.ctx.subject_id = s.id  # Simulate auth context
         out = service.get(MetricsGetIn(subject_id=s.id, measured_on=date(2025, 4, 1)))
         assert out.id == row.id
         assert out.weight_kg == 78.9
 
     def test_get_not_found_raises(self, service):
         """Non-existing row raises NotFoundError."""
+        SUBJECT_ID = 9999
+        service.ctx.subject_id = SUBJECT_ID  # Simulate auth context
         with pytest.raises(NotFoundError):
-            service.get(MetricsGetIn(subject_id=9999, measured_on=date(2025, 1, 1)))
+            service.get(MetricsGetIn(subject_id=SUBJECT_ID, measured_on=date(2025, 1, 1)))
 
     # -------------------------- Listing ----------------------------------- #
 
@@ -143,6 +149,7 @@ class TestSubjectMetricsService:
             date_to=d0 + timedelta(days=2),
             with_total=True,
         )
+        service.ctx.subject_id = s.id  # Simulate auth context
         result = service.list(dto)
 
         # Expect the two most recent first due to "-measured_on"
@@ -158,7 +165,9 @@ class TestSubjectMetricsService:
 
     def test_delete_idempotent_when_missing(self, service):
         """Deleting a non-existing row is idempotent (no error)."""
-        service.delete(MetricsDeleteIn(subject_id=123, measured_on=date(2025, 6, 1)))
+        SUBJECT_ID = 1234
+        service.ctx.subject_id = SUBJECT_ID  # Simulate auth context
+        service.delete(MetricsDeleteIn(subject_id=SUBJECT_ID, measured_on=date(2025, 6, 1)))
 
     def test_delete_with_if_match_mismatch(self, service, session):
         """Delete respects if_match when ETag supported."""
@@ -166,6 +175,7 @@ class TestSubjectMetricsService:
         session.flush()
         row = SubjectBodyMetricsFactory(subject=s, measured_on=date(2025, 6, 2))
         session.flush()
+        service.ctx.subject_id = s.id  # Simulate auth context
 
         if not hasattr(row, "compute_etag"):
             pytest.skip("SubjectBodyMetrics.compute_etag() not implemented; skipping ETag test.")
@@ -182,6 +192,7 @@ class TestSubjectMetricsService:
         """Negative weight should raise ValueError from model validators."""
         s = SubjectFactory()
         session.flush()
+        service.ctx.subject_id = s.id  # Simulate auth context
 
         dto = MetricsUpsertIn(subject_id=s.id, measured_on=date(2025, 7, 1), weight_kg=-1.0)
         with pytest.raises(ValueError):
@@ -191,7 +202,7 @@ class TestSubjectMetricsService:
         """Bodyfat percent must be in [0, 100]."""
         s = SubjectFactory()
         session.flush()
-
+        service.ctx.subject_id = s.id  # Simulate auth context
         dto = MetricsUpsertIn(subject_id=s.id, measured_on=date(2025, 7, 2), bodyfat_pct=150.0)
         with pytest.raises(ValueError):
             service.upsert(dto)
@@ -200,7 +211,7 @@ class TestSubjectMetricsService:
         """Resting HR must be positive when present."""
         s = SubjectFactory()
         session.flush()
-
+        service.ctx.subject_id = s.id  # Simulate auth context
         dto = MetricsUpsertIn(subject_id=s.id, measured_on=date(2025, 7, 3), resting_hr=0)
         with pytest.raises(ValueError):
             service.upsert(dto)

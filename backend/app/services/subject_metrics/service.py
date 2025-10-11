@@ -23,7 +23,8 @@ from app.models.subject import SubjectBodyMetrics
 from app.repositories.subject_body_metrics import SubjectBodyMetricsRepository
 from app.services._shared.base import BaseService
 from app.services._shared.dto import PageMeta
-from app.services._shared.errors import NotFoundError
+from app.services._shared.errors import AuthorizationError, NotFoundError
+from app.services._shared.policies.common import is_owner
 from app.services.subject_metrics.dto import (
     MetricsDeleteIn,
     MetricsGetIn,
@@ -53,6 +54,8 @@ class SubjectMetricsService(BaseService):
         :rtype: :class:`MetricsRowOut`
         :raises PreconditionFailedError: If ``if_match`` provided and mismatches.
         """
+        if not is_owner(actor_id=self.ctx.subject_id, owner_id=dto.subject_id):
+            raise AuthorizationError("You can only access your own metrics.")
         with self.rw_uow() as uow:
             repo: SubjectBodyMetricsRepository = uow.subject_body_metrics
 
@@ -90,6 +93,8 @@ class SubjectMetricsService(BaseService):
         :rtype: :class:`MetricsRowOut`
         :raises NotFoundError: If row does not exist.
         """
+        if not is_owner(actor_id=self.ctx.subject_id, owner_id=dto.subject_id):
+            raise AuthorizationError("You can only access your own metrics.")
         with self.ro_uow() as uow:
             repo: SubjectBodyMetricsRepository = uow.subject_body_metrics
             row = self._get_existing_row(repo, dto.subject_id, dto.measured_on)
@@ -113,6 +118,8 @@ class SubjectMetricsService(BaseService):
         :returns: Paginated list output.
         :rtype: :class:`MetricsListOut`
         """
+        if not is_owner(actor_id=self.ctx.subject_id, owner_id=dto.subject_id):
+            raise AuthorizationError("You can only access your own metrics.")
         with self.ro_uow() as uow:
             repo: SubjectBodyMetricsRepository = uow.subject_body_metrics
 
@@ -152,6 +159,8 @@ class SubjectMetricsService(BaseService):
         :rtype: None
         :raises PreconditionFailedError: If ``if_match`` provided and mismatches.
         """
+        if not is_owner(actor_id=self.ctx.subject_id, owner_id=dto.subject_id):
+            raise AuthorizationError("You can only access your own metrics.")
         with self.rw_uow() as uow:
             repo: SubjectBodyMetricsRepository = uow.subject_body_metrics
             row = self._get_existing_row(repo, dto.subject_id, dto.measured_on)
